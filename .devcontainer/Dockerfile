@@ -25,8 +25,5 @@ RUN apt-get update && apt-get install -y \
     tree \
     && rm -rf /var/lib/apt/lists/*
 
-# Set the default working directory inside the container
-WORKDIR /workspace
-
 # Define the default command that will run when the container starts
 CMD ["bash"]

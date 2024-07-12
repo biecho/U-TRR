@@ -13,3 +13,4 @@ build/
 # Ignore other common files that should not be committed
 *.log
 *.tmp
+/cmake-build-debug/
