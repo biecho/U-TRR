@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  container:
+    build: .
+    privileged: true
+    command: bash
