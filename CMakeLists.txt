@@ -8,12 +8,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
-
-# Include tools headers from the overall project root directory
 include_directories(${CMAKE_SOURCE_DIR}/tools)
+include_directories(${CMAKE_SOURCE_DIR}/libs/DRAM-Bender/sources/api)
 
+# Find the Boost package
+find_package(Boost REQUIRED COMPONENTS program_options filesystem system)
 
-# Add subdirectories
-add_subdirectory(RowScout)
-add_subdirectory(libs/DRAM-Bender)
-# add_subdirectory(tests)
+# Include Boost headers
+include_directories(${Boost_INCLUDE_DIRS})
+
+# Add source files
+file(GLOB_RECURSE DRAM_BENDER_SOURCES
+        ${CMAKE_SOURCE_DIR}/libs/DRAM-Bender/sources/api/*.c
+        ${CMAKE_SOURCE_DIR}/libs/DRAM-Bender/sources/api/*.cpp
+)
+
+# Add your executable
+add_executable(RowScoutExecutable RowScout/RowScout.cpp ${DRAM_BENDER_SOURCES})
+
+# Link Boost and other libraries to your executable
+target_link_libraries(RowScoutExecutable ${Boost_LIBRARIES} pthread)
