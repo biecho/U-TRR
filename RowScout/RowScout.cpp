@@ -1038,7 +1038,7 @@ int main(int argc, char **argv)
 
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	auto t_two_rows_recvd = chrono::high_resolution_clock::now();
-	chrono::duration<double> elapsed;
+	chrono::duration<double> elapsed{};
 	bool check_time;
 
 	target_row = 0;
@@ -1118,8 +1118,7 @@ int main(int argc, char **argv)
 
 		// check the size of the buffer to read the data to and increase its size if needed
 		if (buf_size < row_batch_size * ROW_SIZE) {
-			if (buf != nullptr)
-				delete[] buf;
+			delete[] buf;
 
 			buf = new char[row_batch_size * ROW_SIZE];
 			buf_size = row_batch_size * ROW_SIZE;
@@ -1133,7 +1132,7 @@ int main(int argc, char **argv)
 				       row_batch_size, rows_data, row_group_pattern, buf,
 				       candidate_weaks);
 
-			if (candidate_weaks.size() > 0) {
+			if (!candidate_weaks.empty()) {
 				// remove rows already identified as weak from candidate_weaks
 				for (auto &wr : row_group) {
 					for (auto it = candidate_weaks.begin();
@@ -1147,7 +1146,7 @@ int main(int argc, char **argv)
 			// analyze the candidate row groups to ensure the bitflips are repeatable
 			// and the retention time is determined accurately (i.e., we do not want a
 			// cell to fail for periods smaller than the determined retention time)
-			if (candidate_weaks.size() > 0) {
+			if (!candidate_weaks.empty()) {
 				std::cout << RED_TXT << "Found " << candidate_weaks.size()
 					  << " new candidate row groups." << NORMAL_TXT
 					  << std::endl;
