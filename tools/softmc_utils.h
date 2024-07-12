@@ -12,7 +12,7 @@
 
 #include "instruction.h"
 #include "prog.h"
-#include "tools/perfect_hash.h"
+#include "perfect_hash.h"
 
 #define CACHE_LINE_BITS 512
 

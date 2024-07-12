@@ -1,10 +1,10 @@
 #include "instruction.h"
 #include "prog.h"
 #include "platform.h"
-#include "tools/perfect_hash.h"
-#include "tools/json_struct.h"
-#include "tools/softmc_utils.h"
-#include "tools/ProgressBar.hpp"
+#include "perfect_hash.h"
+#include "json_struct.h"
+#include "softmc_utils.h"
+#include "ProgressBar.hpp"
 
 #include <fstream>
 #include <iostream>
