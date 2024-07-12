@@ -1,31 +1,25 @@
-#include "instruction.h"
-#include "prog.h"
-#include "platform.h"
-#include "perfect_hash.h"
-#include "json_struct.h"
-#include "softmc_utils.h"
 #include "ProgressBar.hpp"
+#include "instruction.h"
+#include "json_struct.h"
+#include "platform.h"
+#include "prog.h"
+#include "softmc_utils.h"
 
-#include <fstream>
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string>
-#include <list>
-#include <cassert>
+#include <algorithm>
+#include <array>
 #include <bitset>
+#include <cassert>
 #include <chrono>
+#include <cstdlib>
+#include <iostream>
+#include <list>
+#include <numeric>
+#include <string>
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 using namespace boost::program_options;
 using namespace boost::filesystem;
-
-#include <array>
-#include <algorithm>
-#include <numeric>
-#include <regex>
 
 using namespace std;
 
