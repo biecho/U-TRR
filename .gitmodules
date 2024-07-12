@@ -1,0 +1,3 @@
+[submodule "libs/DRAM-Bender"]
+	path = libs/DRAM-Bender
+	url = https://github.com/biecho/DRAM-Bender.git
