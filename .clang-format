@@ -6,7 +6,6 @@
 #
 #   Documentation/process/clang-format.rst
 #   https://clang.llvm.org/docs/ClangFormat.html
-#   https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 #
 ---
 AccessModifierOffset: -4
@@ -24,7 +23,7 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
-AlwaysBreakBeforeMultilineStrings: false
+AlwaysBreakBeforeMultilineStrings: true # Ensure multiline strings break before they get too long
 AlwaysBreakTemplateDeclarations: false
 BinPackArguments: true
 BinPackParameters: true
@@ -51,7 +50,7 @@ BreakBeforeTernaryOperators: false
 BreakConstructorInitializersBeforeComma: false
 BreakConstructorInitializers: BeforeComma
 BreakAfterJavaFieldAnnotations: false
-BreakStringLiterals: false
+BreakStringLiterals: true # Break string literals to fit within the column limit
 ColumnLimit: 100
 CommentPragmas: '^ IWYU pragma:'
 CompactNamespaces: false
@@ -95,7 +94,7 @@ PenaltyExcessCharacter: 100
 PenaltyReturnTypeOnItsOwnLine: 60
 
 PointerAlignment: Right
-ReflowComments: false
+ReflowComments: true  # Enable reflowing of comments
 SortIncludes: false
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: false

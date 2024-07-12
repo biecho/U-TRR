@@ -70,10 +70,11 @@ int trrds_cycles = (int)ceil(DEFAULT_TRRDS / FPGA_PERIOD);
 int trrdl_cycles = (int)ceil(DEFAULT_TRRDL / FPGA_PERIOD);
 
 // Retention Profiler Parameters
-uint RETPROF_NUM_ITS =
-	100; // When a candidate row group is found, the profiler repeats the retention time test on the on the row num_test_iterations number of times to make sure the row is reliably weak
-float RETPROF_RETTIME_STEP =
-	1.0f; // defines by how much to increase the target retention time if sufficient row groups not found in the previous iteration
+uint RETPROF_NUM_ITS = 100; // When a candidate row group is found, the profiler repeats the
+			    // retention time test on the on the row num_test_iterations number of
+			    // times to make sure the row is reliably weak
+float RETPROF_RETTIME_STEP = 1.0f; // defines by how much to increase the target retention time if
+				   // sufficient row groups not found in the previous iteration
 float RETPROF_RETTIME_MULT_H = 1.2f;
 
 vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
@@ -247,8 +248,8 @@ void activateBanks(Program &program, const vector<int> &target_banks, int BANK_A
 				cur_rrd = trrds_cycles;
 		}
 
-		cur_rrd =
-			min(0, cur_rrd - 4); // -4 because we use SMC_LI to update the BANK_ADDR_REG
+		cur_rrd = min(0, cur_rrd - 4); // -4 because we use SMC_LI to update the
+					       // BANK_ADDR_REG
 
 		remaining_cycs = add_op_with_delay(
 			program,
@@ -297,7 +298,8 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 	program.add_inst(SMC_LI(row_batch_size, REG_BATCH_SIZE));
 
 	assert(row_batch_size % rows_data.size() == 0 &&
-	       "Data patterns to initialize consecutive rows with must be multiple of the batch of row to initialize at once.");
+	       "Data patterns to initialize consecutive rows with must be multiple of the batch of "
+	       "row to initialize at once.");
 
 	program.add_label("INIT_BATCH");
 
@@ -365,7 +367,8 @@ void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint tar
 
 	/* ==== Initialize data of rows in the row group ==== */
 
-	// initialize the entire range that corresponds to the psysical row ids according to the row_group_pattern
+	// initialize the entire range that corresponds to the psysical row ids according to the
+	// row_group_pattern
 	PhysicalRowID first_phys_row_id = to_physical_row_id(wrs.row_group.front().row_id);
 	PhysicalRowID last_phys_row_id = to_physical_row_id(wrs.row_group.back().row_id);
 	assert(last_phys_row_id >= first_phys_row_id);
@@ -443,7 +446,7 @@ void readFromDRAM(Program &program, const uint target_bank, const uint start_row
 
 	add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 1), 0, 0); // precharge all banks
 
-	//program.add_inst(SMC_LI(NUM_ROWS, REG_NUM_ROWS));
+	// program.add_inst(SMC_LI(NUM_ROWS, REG_NUM_ROWS));
 	program.add_inst(SMC_LI(NUM_COLS_PER_ROW * 8, REG_NUM_COLS));
 
 	program.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each READ reads 8 columns
@@ -494,7 +497,7 @@ void readFromDRAM(Program &program, const uint target_bank, const WeakRowSet &wr
 
 	add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 1), 0, 0); // precharge all banks
 
-	//program.add_inst(SMC_LI(NUM_ROWS, REG_NUM_ROWS));
+	// program.add_inst(SMC_LI(NUM_ROWS, REG_NUM_ROWS));
 	program.add_inst(SMC_LI(NUM_COLS_PER_ROW * 8, REG_NUM_COLS));
 
 	program.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each READ reads 8 columns
@@ -549,11 +552,12 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 			   (num_data_patterns * pattern_loop_cycles + 28)) *
 			  num_data_patterns;
 
-	// cout << "Calculated initial batch size as " << batch_size << " for " << retention_ms << " ms" << endl;
-	// cout << "Rounding batch_size to the previous power-of-two number" << endl;
+	// cout << "Calculated initial batch size as " << batch_size << " for " << retention_ms << "
+	// ms" << endl; cout << "Rounding batch_size to the previous power-of-two number" << endl;
 
 	assert(NUM_ROWS % num_data_patterns == 0 &&
-	       "Number of specified data patterns must be a divisor of NUM_ROWS, i.e., power of two");
+	       "Number of specified data patterns must be a divisor of NUM_ROWS, i.e., power of "
+	       "two");
 
 	// rounding
 	batch_size = min(1 << (uint)(log2(batch_size)), NUM_ROWS);
@@ -638,8 +642,8 @@ void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_patt
 		row_group.emplace_back(to_logical_row_id(bfh.first), bfh.second);
 	}
 
-	assert(rows_data.size() ==
-	       1); // remove this if you are trying to enable support for different input data patterns for different rows
+	assert(rows_data.size() == 1); // remove this if you are trying to enable support for
+				       // different input data patterns for different rows
 	wrs.emplace_back(row_group, target_bank, retention_ms, rows_data[0].pattern_id, 0);
 
 	// to prevent a row being part of multiple WeakRowSets
@@ -661,25 +665,27 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
 
-	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms." << endl;
+	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms."
+	// << endl;
 	waitMS(retention_ms - prog_issue_duration.count());
 
 	// at this point we expect writing data to DRAM to be finished
 	auto t_end_ret_wait = chrono::high_resolution_clock::now();
 
 	chrono::duration<double, milli> write_ret_duration(t_end_ret_wait - t_start_issue_prog);
-	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention time took: " << write_ret_duration.count() << endl;
+	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention
+	// time took: " << write_ret_duration.count() << endl;
 
 	// READ DATA BACK AND CHECK ERRORS
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
 	readFromDRAM(readProg, target_bank, first_row_id, row_batch_size);
 	platform.execute(readProg);
-	//checkForLeftoverPCIeData(platform);
+	// checkForLeftoverPCIeData(platform);
 	platform.receiveData(buf, ROW_SIZE * row_batch_size); // reading all RH_NUM_ROWS at once
-	//t_two_rows_recvd = chrono::high_resolution_clock::now();
-	//elapsed = t_two_rows_recvd - t_prog_started;
-	//cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
+	// t_two_rows_recvd = chrono::high_resolution_clock::now();
+	// elapsed = t_two_rows_recvd - t_prog_started;
+	// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
 
 	bool check_time = false;
 	if (check_time) {
@@ -691,7 +697,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		     << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
 	}
 
-	//t_prog_started = chrono::high_resolution_clock::now();
+	// t_prog_started = chrono::high_resolution_clock::now();
 
 	// go over physical row IDs in order
 	for (int i = 0; i < row_batch_size; i++) {
@@ -702,7 +708,8 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		// std::cout << "row_batch_size: " << row_batch_size << std::endl;
 		// std::cout << "log_row_id: " << log_row_id << std::endl;
 		assert(log_row_id < (first_row_id + row_batch_size) && log_row_id >= first_row_id &&
-		       "ERROR: The used Logical to Physical row address mapping results in logical address out of bounds of the row_batch size. Consider revising the code.");
+		       "ERROR: The used Logical to Physical row address mapping results in logical "
+		       "address out of bounds of the row_batch size. Consider revising the code.");
 
 		vector<uint> bitflips;
 		collect_bitflips(bitflips, buf + (log_row_id - first_row_id) * ROW_SIZE,
@@ -714,12 +721,13 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		}
 	}
 
-	//t_two_rows_recvd = chrono::high_resolution_clock::now();
+	// t_two_rows_recvd = chrono::high_resolution_clock::now();
 
-	//elapsed = t_two_rows_recvd - t_prog_started;
-	//cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
+	// elapsed = t_two_rows_recvd - t_prog_started;
+	// cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
 
-	//cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 << endl;
+	// cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 <<
+	// endl;
 }
 
 // return true if the same bit locations in WeakRowSet wrs experience bitflips
@@ -739,26 +747,28 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
 
-	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms." << endl;
+	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms."
+	// << endl;
 	waitMS(retention_ms - prog_issue_duration.count());
 
 	// at this point we expect writing data to DRAM to be finished
 	auto t_end_ret_wait = chrono::high_resolution_clock::now();
 
 	chrono::duration<double, milli> write_ret_duration(t_end_ret_wait - t_start_issue_prog);
-	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention time took: " << write_ret_duration.count() << endl;
+	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention
+	// time took: " << write_ret_duration.count() << endl;
 
 	// READ DATA BACK AND CHECK ERRORS
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
 	readFromDRAM(readProg, target_bank, wrs);
 	platform.execute(readProg);
-	//checkForLeftoverPCIeData(platform);
+	// checkForLeftoverPCIeData(platform);
 	platform.receiveData(buf,
 			     ROW_SIZE * wrs.row_group.size()); // reading all RH_NUM_ROWS at once
-	//t_two_rows_recvd = chrono::high_resolution_clock::now();
-	//elapsed = t_two_rows_recvd - t_prog_started;
-	//cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
+	// t_two_rows_recvd = chrono::high_resolution_clock::now();
+	// elapsed = t_two_rows_recvd - t_prog_started;
+	// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
 
 	bool check_time = false;
 	if (check_time) {
@@ -770,7 +780,7 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 		     << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
 	}
 
-	//t_prog_started = chrono::high_resolution_clock::now();
+	// t_prog_started = chrono::high_resolution_clock::now();
 
 	for (int i = 0; i < wrs.row_group.size(); i++) {
 		vector<uint> bitflips;
@@ -800,16 +810,17 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 
 	return true;
 
-	//t_two_rows_recvd = chrono::high_resolution_clock::now();
+	// t_two_rows_recvd = chrono::high_resolution_clock::now();
 
-	//elapsed = t_two_rows_recvd - t_prog_started;
-	//cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
+	// elapsed = t_two_rows_recvd - t_prog_started;
+	// cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
 
-	//cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 << endl;
+	// cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 <<
+	// endl;
 }
 
-// check if the candicate row groups have repeatable retention bitflips according to the RETPROF configuration parameters
-// clears candidate_weaks
+// check if the candicate row groups have repeatable retention bitflips according to the RETPROF
+// configuration parameters clears candidate_weaks
 void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		   vector<WeakRowSet> &candidate_weaks, vector<WeakRowSet> &row_group,
 		   const uint weak_rows_needed)
@@ -829,7 +840,8 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		for (uint i = 0; i < RETPROF_NUM_ITS; i++) {
 			// std::cout << "Iteration: " << i + 1 << "/" << RETPROF_NUM_ITS << endl;
 
-			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H higher retention time
+			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
+			// higher retention time
 			if (!check_retention_failute_repeatability(
 				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id,
 				    wr, rows_data, buf)) {
@@ -840,9 +852,11 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 				break;
 			}
 
-			// std::cout << YELLOW_TXT << "HIGH RETENTION CHECK SUCCEEDED" << NORMAL_TXT << std::endl;
+			// std::cout << YELLOW_TXT << "HIGH RETENTION CHECK SUCCEEDED" << NORMAL_TXT
+			// << std::endl;
 
-			// test whether the row never experiences bitflips with RETPROF_RETTIME_MULT_L lower retention time
+			// test whether the row never experiences bitflips with
+			// RETPROF_RETTIME_MULT_L lower retention time
 			if (!check_retention_failute_repeatability(
 				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
 				    wr.bank_id, wr, rows_data, buf, true)) {
@@ -853,7 +867,8 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 				break;
 			}
 
-			// std::cout << YELLOW_TXT << "LOW RETENTION CHECK SUCCEEDED" << NORMAL_TXT << std::endl;
+			// std::cout << YELLOW_TXT << "LOW RETENTION CHECK SUCCEEDED" << NORMAL_TXT
+			// << std::endl;
 
 			++progress_bar;
 			progress_bar.display();
@@ -896,10 +911,11 @@ int main(int argc, char **argv)
 	int target_row = -1;
 	int starting_ret_time = 64;
 	int num_row_groups = 1;
-	string row_group_pattern =
-		"R-R"; // to search for rows that have specific distances among each other.
-	// For example, "R-R" (default) makes RowScout search for two rows that 1) are one row address apart and 2) have similar retention times.
-	// Similarly, "RR" makes RowScout search for two rows that 1) have consecutive row addresses and 2) have similar retention times.
+	string row_group_pattern = "R-R"; // to search for rows that have specific distances among
+					  // each other.
+	// For example, "R-R" (default) makes RowScout search for two rows that 1) are one row
+	// address apart and 2) have similar retention times. Similarly, "RR" makes RowScout search
+	// for two rows that 1) have consecutive row addresses and 2) have similar retention times.
 	// "R" makes RowScout search for any row that would experience a retention failure.
 
 	int input_data_pattern = 1;
@@ -917,20 +933,32 @@ int main(int argc, char **argv)
 		"bank,b", value(&target_bank)->default_value(target_bank),
 		"Specifies the address of the bank to be profiled.")(
 		"range", value<vector<int> >(&row_range)->multitoken(),
-		"Specifies a range of row addresses (start and end values are both inclusive) to be profiled. By default, the range spans an entire bank.")(
+		"Specifies a range of row addresses (start and end values are both inclusive) to "
+		"be profiled. By default, the range spans an entire bank.")(
 		"init_ret_time,r", value(&starting_ret_time)->default_value(starting_ret_time),
-		"Specifies the initial retention time (in milliseconds) to test the rows specified by --bank and --range. When RowScout cannot find a set of rows that satisfy the requirements specified by other options, RowScout increases the retention time used in profiling and repeats the profiling procedure.")(
+		"Specifies the initial retention time (in milliseconds) to test the rows specified "
+		"by --bank and --range. When RowScout cannot find a set of rows that satisfy the "
+		"requirements specified by other options, RowScout increases the retention time "
+		"used in profiling and repeats the profiling procedure.")(
 		"row_group_pattern", value(&row_group_pattern)->default_value(row_group_pattern),
-		"Specifies the distances among rows in a row group that RowScout must find. Must include only 'R' and '-'. Example values: R-R (two one-row-address-apart rows with similar retention times) , RR (two consecutively-addressed rows with similar retention times).")(
-		"num_row_groups,w", value(&num_row_groups)->default_value(num_row_groups),
-		"Specifies the number of row groups that RowScout must find.")(
+		"Specifies the distances among rows in a row group that RowScout must find. Must "
+		"include only 'R' and '-'. Example values: R-R (two one-row-address-apart rows "
+		"with similar retention times) , RR (two consecutively-addressed rows with similar "
+		"retention times).")("num_row_groups,w",
+				     value(&num_row_groups)->default_value(num_row_groups),
+				     "Specifies the number of row groups that RowScout must find.")(
 		"log_phys_scheme",
 		value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
-		"Specifies how to convert logical row IDs to physical row ids and the other way around. Pass 0 (default) for sequential mapping, 1 for the mapping scheme typically used in Samsung chips.")(
+		"Specifies how to convert logical row IDs to physical row ids and the other way "
+		"around. Pass 0 (default) for sequential mapping, 1 for the mapping scheme "
+		"typically used in Samsung chips.")(
 		"input_data,i", value(&input_data_pattern)->default_value(input_data_pattern),
-		"Specifies the data pattern to initialize rows with for profiling. Defined value are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: inverse colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, 0101)")(
+		"Specifies the data pattern to initialize rows with for profiling. Defined value "
+		"are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: inverse "
+		"colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, 0101)")(
 		"append", bool_switch(&append_output),
-		"When specified, the output is appended to the --out file (if it exists). Otherwise the --out file is cleared.");
+		"When specified, the output is appended to the --out file (if it exists). "
+		"Otherwise the --out file is cleared.");
 
 	variables_map vm;
 	store(parse_command_line(argc, argv, desc), vm);
@@ -953,7 +981,8 @@ int main(int argc, char **argv)
 		row_range[1] = NUM_ROWS - 1;
 
 	if (row_range[1] > (NUM_ROWS - 1)) {
-		cout << "Specified row range exceeds the number of rows in the DRAM module. Adjusting the range accordingly."
+		cout << "Specified row range exceeds the number of rows in the DRAM module. "
+			"Adjusting the range accordingly."
 		     << endl;
 		cout << "Specified: " << row_range[1] << ", actual num rows: " << NUM_ROWS << endl;
 		row_range[1] = NUM_ROWS - 1;
@@ -1027,21 +1056,23 @@ int main(int argc, char **argv)
 	const uint default_data_patterns[] = { 0x0,	   0xFFFFFFFF, 0x00000000, 0x55555555,
 					       0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
 
-	// this is ugly but I am leaving it like this to make things easier in case we decide to use different input data patterns for different rows.
+	// this is ugly but I am leaving it like this to make things easier in case we decide to use
+	// different input data patterns for different rows.
 	vector<int> input_data_patterns = { input_data_pattern };
 	for (int inp_pat : input_data_patterns) {
 		RowData rd;
 		bitset<512> rdata;
 
 		switch (inp_pat) {
-		case 0: { //random
+		case 0: { // random
 			// GENERATING RANDOM TEST DATA
 			uint32_t rand_int;
 
 			for (int pos = 0; pos < 16; pos++) {
 				rdata <<= 32;
 				rand_int = (rand() << 16) | (0x0000FFFF & rand());
-				//cout << "generated random 32-bit: " << hex << rand_int << dec << endl;
+				// cout << "generated random 32-bit: " << hex << rand_int << dec <<
+				// endl;
 				rdata |= rand_int;
 			}
 			break;
@@ -1083,8 +1114,8 @@ int main(int argc, char **argv)
 
 	// write out profiler configuration to the output file
 	// out_file << "RETPROF_NUM_ITS: " << RETPROF_NUM_ITS << std::endl;
-	// // out_file << "RETPROF_SUCCESSFUL_ITS_THRESH: " << RETPROF_SUCCESSFUL_ITS_THRESH << std::endl;
-	// out_file << "RETPROF_RETTIME_MULT_H: " << RETPROF_RETTIME_MULT_H << std::endl;
+	// // out_file << "RETPROF_SUCCESSFUL_ITS_THRESH: " << RETPROF_SUCCESSFUL_ITS_THRESH <<
+	// std::endl; out_file << "RETPROF_RETTIME_MULT_H: " << RETPROF_RETTIME_MULT_H << std::endl;
 	// out_file << "RETPROF_RETTIME_STEP: " << RETPROF_RETTIME_STEP << std::endl;
 	// out_file << "============" << std::endl;
 
@@ -1123,7 +1154,9 @@ int main(int argc, char **argv)
 				}
 			}
 
-			// analyze the candidate row groups to ensure the bitflips are repeatable and the retention time is determined accurately (i.e., we do not want a cell to fail for periods smaller than the determined retention time)
+			// analyze the candidate row groups to ensure the bitflips are repeatable
+			// and the retention time is determined accurately (i.e., we do not want a
+			// cell to fail for periods smaller than the determined retention time)
 			if (candidate_weaks.size() > 0) {
 				std::cout << RED_TXT << "Found " << candidate_weaks.size()
 					  << " new candidate row groups." << NORMAL_TXT
@@ -1145,7 +1178,7 @@ int main(int argc, char **argv)
 
 		auto cur_time = chrono::high_resolution_clock::now();
 		elapsed = cur_time - t_prog_started;
-		//cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
+		// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
 		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found "
 			  << row_group.size() - last_num_weak_rows << " new (" << row_group.size()
 			  << " total) row groups" << NORMAL_TXT << std::endl;
