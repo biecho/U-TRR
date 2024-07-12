@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     clang-format \
+    tree \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the default working directory inside the container
