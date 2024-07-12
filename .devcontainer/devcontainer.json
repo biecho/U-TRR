@@ -21,7 +21,8 @@
 		  "ms-vscode.cmake-tools", // Provides CMake build and test integration
 		  "ms-vscode.cpptools-extension-pack",
 		  "ms-vscode.makefile-tools",
-		  "ms-azuretools.vscode-docker"
+		  "ms-azuretools.vscode-docker",
+		  "xaver.clang-format"
 		]
 	  }
 	},
