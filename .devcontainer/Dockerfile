@@ -14,6 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 #    - clang-format: Tool to format C/C++ code according to specified style guidelines
 #    - libboost-all-dev: Meta-package to install all Boost libraries
 #    - tree: Utility to display directory tree structure
+#    - ca-certificates: HTTPS certificates, useful for secure connections
 # 3. Clean up the package list to reduce container size. This is done by removing the apt cache in /var/lib/apt/lists
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -23,6 +24,8 @@ RUN apt-get update && apt-get install -y \
     clang-format \
     libboost-all-dev \
     tree \
+    ca-certificates \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Define the default command that will run when the container starts
