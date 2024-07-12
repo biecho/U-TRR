@@ -1,92 +1,71 @@
-#include <algorithm>
-#include <array>
-#include <bitset>
-#include <cassert>
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <list>
-#include <numeric>
-#include <regex>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <unistd.h>
-#include <vector>
-
-#include <string>
-#include <vector>
-
 #include <boost/program_options.hpp>
-#include <boost/filesystem.hpp>
-using namespace boost::program_options;
-using namespace boost::filesystem;
+#include <iostream>
+#include <string>
+#include <vector>
 
 using namespace std;
+using namespace boost::program_options;
 
-int main(int argc, char **argv)
+// Function to setup command-line options
+options_description setup_options()
 {
 	options_description desc("RowScout Options");
-	desc.add_options()("help,h", "Prints this usage statement.")(
-		"out,o", value(&out_filename)->default_value(out_filename),
-		"Specifies a path for the output file.")(
-		"bank,b", value(&target_bank)->default_value(target_bank),
-		"Specifies the address of the bank to be profiled.")(
-		"range", value<vector<int> >(&row_range)->multitoken(),
-		"Specifies a range of row addresses (start and end values are both inclusive) to "
-		"be profiled. By default, the range spans an entire bank.")(
-		"init_ret_time,r", value(&starting_ret_time)->default_value(starting_ret_time),
-		"Specifies the initial retention time (in milliseconds) to test the rows specified "
-		"by --bank and --range. When RowScout cannot find a set of rows that satisfy the "
-		"requirements specified by other options, RowScout increases the retention time "
-		"used in profiling and repeats the profiling procedure.")(
-		"row_group_pattern", value(&row_group_pattern)->default_value(row_group_pattern),
-		"Specifies the distances among rows in a row group that RowScout must find. Must "
-		"include only 'R' and '-'. Example values: R-R (two one-row-address-apart rows "
-		"with similar retention times) , RR (two consecutively-addressed rows with similar "
-		"retention times).")("num_row_groups,w",
-				     value(&num_row_groups)->default_value(num_row_groups),
-				     "Specifies the number of row groups that RowScout must find.")(
-		"log_phys_scheme",
-		value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
-		"Specifies how to convert logical row IDs to physical row ids and the other way "
-		"around. Pass 0 (default) for sequential mapping, 1 for the mapping scheme "
-		"typically used in Samsung chips.")(
-		"input_data,i", value(&input_data_pattern)->default_value(input_data_pattern),
-		"Specifies the data pattern to initialize rows with for profiling. Defined value "
-		"are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: inverse "
-		"colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, 0101)")(
-		"append", bool_switch(&append_output),
-		"When specified, the output is appended to the --out file (if it exists). "
-		"Otherwise the --out file is cleared.");
+	desc.add_options()("help,h", "Prints this usage statement.")("out,o", value<string>()->default_value("default_output.txt"),
+								     "Specifies a path for the output file.")(
+		"bank,b", value<string>()->default_value(""), "Specifies the address of the bank to be profiled.")(
+		"range", value<vector<int> >()->multitoken(), "Specifies a range of row addresses.")(
+		"init_ret_time,r", value<int>()->default_value(100), "Specifies the initial retention time (in milliseconds).")(
+		"row_group_pattern", value<string>()->default_value("RR"), "Specifies the distances among rows in a row group.")(
+		"num_row_groups,w", value<int>()->default_value(1), "Specifies the number of row groups to find.")(
+		"log_phys_scheme", value<int>()->default_value(0), "Specifies the logical to physical ID conversion scheme.")(
+		"input_data,i", value<int>()->default_value(0), "Specifies the data pattern to initialize rows with for profiling.")(
+		"append", bool_switch(), "When specified, the output is appended to the output file. Otherwise, the file is cleared.");
+	return desc;
+}
 
-	variables_map vm;
-	store(parse_command_line(argc, argv, desc), vm);
-	notify(vm);
+// Function to process command-line options
+void process_options(const variables_map &vm)
+{
+	if (vm.count("help")) {
+		cout << "Usage instructions\n";
+		return;
+	}
 
-	string out_filename = "./out.txt";
-	int test_mode = 0;
-	int target_bank = 1;
-	int target_row = -1;
-	int starting_ret_time = 64;
-	int num_row_groups = 1;
+	cout << "Output filename: " << vm["out"].as<string>() << endl;
+	cout << "Bank address: " << vm["bank"].as<string>() << endl;
+	if (vm.count("range")) {
+		cout << "Row range: ";
+		for (int num : vm["range"].as<vector<int> >()) {
+			cout << num << " ";
+		}
+		cout << endl;
+	}
+	cout << "Initial retention time: " << vm["init_ret_time"].as<int>() << " ms" << endl;
+	cout << "Row group pattern: " << vm["row_group_pattern"].as<string>() << endl;
+	cout << "Number of row groups: " << vm["num_row_groups"].as<int>() << endl;
+	cout << "Logical to physical scheme: " << vm["log_phys_scheme"].as<int>() << endl;
+	cout << "Input data pattern: " << vm["input_data"].as<int>() << endl;
+	cout << "Append output: " << (vm["append"].as<bool>() ? "yes" : "no") << endl;
+}
 
-    // to search for rows that have specific distances among each other.
-	// For example, "R-R" (default) makes RowScout search for two rows that 1) are one row
-	// address apart and 2) have similar retention times. Similarly, "RR" makes RowScout search
-	// for two rows that 1) have consecutive row addresses and 2) have similar retention times.
-	// "R" makes RowScout search for any row that would experience a retention failure.
-	string row_group_pattern = "R-R"; 
+int main(int argc, char *argv[])
+{
+	try {
+		options_description desc = setup_options();
+		variables_map vm;
+		store(parse_command_line(argc, argv, desc), vm);
+		notify(vm);
 
-	int input_data_pattern = 1;
-	vector<int> row_range{ -1, -1 };
+		if (vm.count("help")) {
+			cout << desc << endl;
+			return 0;
+		}
 
-	uint arg_log_phys_conv_scheme = 0;
+		process_options(vm);
+	} catch (const error &ex) {
+		cerr << "Error: " << ex.what() << endl;
+		return 1;
+	}
 
-	bool append_output = false;
-
-
-    printf("Hello World\n");
-
-    return 0;
+	return 0;
 }
