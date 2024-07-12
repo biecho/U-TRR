@@ -1,0 +1,15 @@
+# Ignore the build directory
+build/
+
+# Ignore object files and static libraries
+*.o
+*.a
+
+# Ignore various IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Ignore other common files that should not be committed
+*.log
+*.tmp
