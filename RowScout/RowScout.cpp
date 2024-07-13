@@ -594,7 +594,7 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 }
 
 void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_pattern, const vector<RowData> &rows_data,
-		      const uint target_bank, const uint batch_ind, const uint batch_first_row, const uint retention_ms)
+		      const uint target_bank, const uint retention_ms)
 {
 	vector<WeakRow> row_group;
 	uint vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
@@ -677,7 +677,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
 
 		if (fits_into_row_pattern(bitflips, phys_row_id)) {
-			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank, i, first_row_id, retention_ms);
+			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank, retention_ms);
 		}
 	}
 
