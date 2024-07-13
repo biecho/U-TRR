@@ -532,11 +532,7 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 
 // pairs of row_id and number of bitflips
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
-static std::vector<uint> retentionCheckIndices;
 
-vector<Row> getVector(const string &row_group_pattern);
-void ensureSequentialRowProcessing(vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
-				   const uint rowId);
 // Initialize with row id -1 and empty bitflip vectors
 void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
@@ -578,14 +574,14 @@ void ensureSequentialRowProcessing(std::vector<std::pair<int, std::vector<uint> 
  *
  * @param bitflipHistory A vector of pairs, where each pair consists of a row ID
  *        and a vector of bitflip data associated with that row.
- * @param requiredIndices A vector of indices that must contain bitflip data.
+ * @param retentionCheckIndices A vector of indices that must contain bitflip data.
  *
  * @return true if all specified indices have non-empty bitflip data; otherwise, false.
  */
 bool checkBitflipLocations(const std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
-			   const std::vector<uint> &requiredIndices)
+			   const std::vector<uint> &retentionCheckIndices)
 {
-	return std::all_of(requiredIndices.begin(), requiredIndices.end(),
+	return std::all_of(retentionCheckIndices.begin(), retentionCheckIndices.end(),
 			   [&bitflipHistory](const uint index) {
 				   return index < bitflipHistory.size() &&
 					  !bitflipHistory[index].second.empty();
@@ -608,7 +604,8 @@ vector<Row> buildRowsFromHistory(const vector<std::pair<int, std::vector<uint> >
 
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
-		    const vector<RowData> &rows_data, char *buf, vector<RowGroup> &rowGroups)
+		    const vector<RowData> &rows_data, char *buf, vector<RowGroup> &rowGroups,
+		    vector<uint> retentionCheckIndices)
 {
 	// Write to DRAM
 	Program writeProg;
@@ -902,6 +899,7 @@ int main(int argc, char **argv)
 		row_group_pattern.find_first_of('R'),
 		row_group_pattern.find_last_of('R') - row_group_pattern.find_first_of('R') + 1);
 
+	vector<uint> retentionCheckIndices;
 	for (uint i = 0; i < row_group_pattern.size(); i++) {
 		if (row_group_pattern[i] == 'R') {
 			retentionCheckIndices.push_back(i);
@@ -1023,7 +1021,8 @@ int main(int argc, char **argv)
 		while (num_profiled_rows < target_region_size) {
 			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0],
-				       row_batch_size, rows_data, buf, candidateRowGroups);
+				       row_batch_size, rows_data, buf, candidateRowGroups,
+				       retentionCheckIndices);
 
 			candidateRowGroups =
 				filterCandidateRowGroups(rowGroups, candidateRowGroups);
