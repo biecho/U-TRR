@@ -97,9 +97,9 @@ typedef struct RowGroup {
 	uint ret_ms;
 	uint data_pattern_type;
 	uint rowdata_ind;
-	RowGroup(std::vector<Row> _weak_rows, uint _bank_id, uint _ret_ms, uint _data_pattern_type,
+	RowGroup(std::vector<Row> _rows, uint _bank_id, uint _ret_ms, uint _data_pattern_type,
 		 uint _rowdata_ind)
-		: rows(_weak_rows)
+		: rows(_rows)
 		, bank_id(_bank_id)
 		, ret_ms(_ret_ms)
 		, data_pattern_type(_data_pattern_type)
@@ -531,6 +531,7 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
 static std::vector<uint> locs_to_check;
 
+vector<Row> getVector(const string &row_group_pattern);
 // Initialize with row id -1 and empty bitflip vectors
 void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
@@ -584,28 +585,23 @@ bool fitsIntoRowPattern(std::vector<std::pair<int, std::vector<uint> > > &bitfli
 	return true;
 }
 
-RowGroup buildRowGroup(const std::string &row_group_pattern, const uint target_bank,
-		       const uint retention_ms, const uint dataPatternType)
+vector<Row> buildRowsFromHistory(const vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+				 const vector<uint> &locsToCheck)
 {
-	vector<Row> row_group;
+	vector<Row> rows;
 
-	auto vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
-
-	row_group.reserve(vec_size);
-
-	for (auto loc : locs_to_check) {
-		auto &bfh = bitflip_history[loc];
+	for (auto loc : locsToCheck) {
+		auto &bfh = bitflipHistory[loc];
 		auto row_id = to_logical_row_id(bfh.first);
-		row_group.emplace_back(row_id, bfh.second);
+		rows.emplace_back(row_id, bfh.second);
 	}
 
-	return { row_group, target_bank, retention_ms, dataPatternType, 0 };
+	return rows;
 }
 
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
-		    const vector<RowData> &rows_data, const std::string &row_group_pattern,
-		    char *buf, vector<RowGroup> &rowGroups)
+		    const vector<RowData> &rows_data, char *buf, vector<RowGroup> &rowGroups)
 {
 	// Write to DRAM
 	Program writeProg;
@@ -645,8 +641,9 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 			assert(rows_data.size() == 1);
 
 			auto dataPatternType = rows_data[0].pattern_id;
-			auto rowGroup = buildRowGroup(row_group_pattern, target_bank, retention_ms,
-						      dataPatternType);
+			auto rows = buildRowsFromHistory(bitflip_history, locs_to_check);
+
+			RowGroup rowGroup = { rows, target_bank, retention_ms, dataPatternType, 0 };
 			rowGroups.emplace_back(rowGroup);
 
 			// to prevent a row being part of multiple row groups
@@ -1004,8 +1001,7 @@ int main(int argc, char **argv)
 		while (num_profiled_rows < target_region_size) {
 			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0],
-				       row_batch_size, rows_data, row_group_pattern, buf,
-				       candidateRowGroups);
+				       row_batch_size, rows_data, buf, candidateRowGroups);
 
 			candidateRowGroups =
 				filterCandidateRowGroups(rowGroups, candidateRowGroups);
