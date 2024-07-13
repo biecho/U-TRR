@@ -166,6 +166,31 @@ LogicalRowID to_logical_row_id(uint physical_row_id)
 	return 0;
 }
 
+vector<WeakRowSet> filterCandidateRowGroups(const vector<WeakRowSet> &rowGroups, const vector<WeakRowSet> &candidateRowGroups)
+{
+	vector<WeakRowSet> filteredCandidates;
+
+	// Check each candidate row group
+	for (const auto &candidate : candidateRowGroups) {
+		bool hasCommon = false;
+
+		// Compare against each existing row group
+		for (const auto &rowGroup : rowGroups) {
+			if (rowGroup.hasCommonRowWith(candidate)) {
+				hasCommon = true;
+				break; // No need to check further if a common row is found
+			}
+		}
+
+		// Add to filtered list if no common rows were found
+		if (!hasCommon) {
+			filteredCandidates.push_back(candidate);
+		}
+	}
+
+	return filteredCandidates;
+}
+
 // returns a vector of bit positions that experienced bitflips
 void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowData &rh_row)
 {
@@ -901,8 +926,8 @@ int main(int argc, char **argv)
 	int retention_ms = starting_ret_time;
 	uint64_t buf_size = 0;
 	char *buf = nullptr;
-	vector<WeakRowSet> candidate_weaks;
-	vector<WeakRowSet> row_group;
+	vector<WeakRowSet> candidateRowGroups;
+	vector<WeakRowSet> rowGroups;
 
 	uint num_wrs_written_out = 0;
 
@@ -935,32 +960,24 @@ int main(int argc, char **argv)
 		while (num_profiled_rows < target_region_size) {
 			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0], row_batch_size, rows_data, row_group_pattern, buf,
-				       candidate_weaks);
+				       candidateRowGroups);
 
-			if (!candidate_weaks.empty()) {
-				// remove rows already identified as weak from candidate_weaks
-				for (auto &wr : row_group) {
-					for (auto it = candidate_weaks.begin(); it != candidate_weaks.end(); it++) {
-						if (wr.hasCommonRowWith(*it))
-							candidate_weaks.erase(it--);
-					}
-				}
-			}
+			candidateRowGroups = filterCandidateRowGroups(rowGroups, candidateRowGroups);
 
 			// analyze the candidate row groups to ensure the bitflips are repeatable
 			// and the retention time is determined accurately (i.e., we do not want a
 			// cell to fail for periods smaller than the determined retention time)
-			if (!candidate_weaks.empty()) {
-				std::cout << RED_TXT << "Found " << candidate_weaks.size() << " new candidate row groups." << NORMAL_TXT
+			if (!candidateRowGroups.empty()) {
+				std::cout << RED_TXT << "Found " << candidateRowGroups.size() << " new candidate row groups." << NORMAL_TXT
 					  << std::endl;
-				analyze_weaks(platform, rows_data, candidate_weaks, row_group, num_row_groups);
+				analyze_weaks(platform, rows_data, candidateRowGroups, rowGroups, num_row_groups);
 			}
 
-			while (num_wrs_written_out < row_group.size()) {
-				out_file << wrs_to_string(row_group[num_wrs_written_out++]) << std::endl;
+			while (num_wrs_written_out < rowGroups.size()) {
+				out_file << wrs_to_string(rowGroups[num_wrs_written_out++]) << std::endl;
 			}
 
-			if (row_group.size() >= num_row_groups)
+			if (rowGroups.size() >= num_row_groups)
 				break;
 
 			num_profiled_rows += row_batch_size;
@@ -969,11 +986,11 @@ int main(int argc, char **argv)
 		auto cur_time = chrono::high_resolution_clock::now();
 		elapsed = cur_time - t_prog_started;
 		// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
-		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found " << row_group.size() - last_num_weak_rows << " new ("
-			  << row_group.size() << " total) row groups" << NORMAL_TXT << std::endl;
-		last_num_weak_rows = row_group.size();
+		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found " << rowGroups.size() - last_num_weak_rows << " new ("
+			  << rowGroups.size() << " total) row groups" << NORMAL_TXT << std::endl;
+		last_num_weak_rows = rowGroups.size();
 
-		if (row_group.size() >= num_row_groups)
+		if (rowGroups.size() >= num_row_groups)
 			break;
 
 		retention_ms += (int)(starting_ret_time * RETPROF_RETTIME_STEP);
