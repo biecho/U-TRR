@@ -1,5 +1,6 @@
 # Use an official Ubuntu image for x86_64 architecture
-FROM --platform=linux/amd64 ubuntu:22.04
+FROM ubuntu:22.04
+#FROM --platform=linux/amd64 ubuntu:22.04
 
 # Set an environment variable to prevent any interactive time zone config and user prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
