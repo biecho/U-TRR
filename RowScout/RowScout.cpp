@@ -585,59 +585,25 @@ void ensureSequentialRowProcessing(std::vector<std::pair<int, std::vector<uint> 
 	}
 }
 
-bool verifyRowPatternConsistency(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
-				 const std::vector<uint> &locsToCheck,
-				 const std::vector<uint> &bitflips, const uint rowId)
+/**
+ * Checks if specified indices in the bitflip history have recorded bitflips.
+ * This function ensures that all required indices in the history have non-empty
+ * data, validating the presence of bitflips.
+ *
+ * @param bitflipHistory A vector of pairs, where each pair consists of a row ID
+ *        and a vector of bitflip data associated with that row.
+ * @param requiredIndices A vector of indices that must contain bitflip data.
+ *
+ * @return true if all specified indices have non-empty bitflip data; otherwise, false.
+ */
+bool checkBitflipLocations(const std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+			   const std::vector<uint> &requiredIndices)
 {
-	ensureSequentialRowProcessing(bitflipHistory, rowId);
-
-	// Maintain the history size by removing the oldest entry if necessary
-	if (!bitflipHistory.empty()) {
-		bitflipHistory.erase(bitflipHistory.begin());
-	}
-
-	// Add the current row's bit flips to the history
-	bitflipHistory.emplace_back(rowId, bitflips);
-
-	// Check all required locations to see if they match the expected pattern
-	for (auto location : locsToCheck) {
-		// Pattern does not match if any required location has no bitflips
-		if (location >= bitflipHistory.size() || bitflipHistory[location].second.empty()) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-bool fitsIntoRowPattern(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
-			std::vector<uint> &locsToCheck, const std::vector<uint> &bitflips,
-			const uint rowId)
-{
-	// Check if receiving rowId in order
-	if (!bitflipHistory.empty() && bitflipHistory.back().first != -1 &&
-	    bitflipHistory.back().first != (rowId - 1)) {
-		std::cerr << RED_TXT << "ERROR: Did not profile rows in order. Got row id " << rowId
-			  << " after row id " << bitflipHistory.back().first << NORMAL_TXT
-			  << std::endl;
-		exit(-1);
-	}
-
-	// Remove the oldest entry in bitflipHistory
-	if (!bitflipHistory.empty()) {
-		bitflipHistory.erase(bitflipHistory.begin());
-	}
-
-	// Insert a new entry
-	bitflipHistory.emplace_back(rowId, bitflips);
-
-	// Check if the current bitflipHistory matches the pattern
-	for (auto loc : locsToCheck) {
-		if (bitflipHistory[loc].second.empty()) {
-			return false;
-		}
-	}
-	return true;
+	return std::all_of(requiredIndices.begin(), requiredIndices.end(),
+			   [&bitflipHistory](const uint index) {
+				   return index < bitflipHistory.size() &&
+					  !bitflipHistory[index].second.empty();
+			   });
 }
 
 vector<Row> buildRowsFromHistory(const vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
@@ -690,8 +656,17 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		const auto &row = rows_data[(log_row_id - first_row_id) % rows_data.size()];
 		auto bitflips = collect_bitflips(readData, row);
 
-		if (verifyRowPatternConsistency(bitflip_history, locs_to_check, bitflips,
-						phys_row_id)) {
+		ensureSequentialRowProcessing(bitflip_history, phys_row_id);
+
+		// Maintain the history size by removing the oldest entry if necessary
+		if (!bitflip_history.empty()) {
+			bitflip_history.erase(bitflip_history.begin());
+		}
+
+		// Add the current row's bit flips to the history
+		bitflip_history.emplace_back(phys_row_id, bitflips);
+
+		if (checkBitflipLocations(bitflip_history, locs_to_check)) {
 			// remove this if you are trying to enable support for different
 			// input readData patterns for different rows
 			assert(rows_data.size() == 1);
