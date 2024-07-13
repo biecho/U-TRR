@@ -578,9 +578,8 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 	return true;
 }
 
-void buildRowGroup(vector<RowGroup> &rowGroups, const std::string &row_group_pattern,
-		      const vector<RowData> &rows_data, const uint target_bank,
-		      const uint retention_ms)
+RowGroup buildRowGroup(const std::string &row_group_pattern, const uint target_bank,
+		       const uint retention_ms, const uint dataPatternType)
 {
 	vector<Row> row_group;
 
@@ -594,23 +593,13 @@ void buildRowGroup(vector<RowGroup> &rowGroups, const std::string &row_group_pat
 		row_group.emplace_back(row_id, bfh.second);
 	}
 
-	// remove this if you are trying to enable support for different
-	// input data patterns for different rows
-	assert(rows_data.size() == 1);
-
-	// Here instead of the next lines, please just return the single row group.
-	// Update HERE.
-
-	rowGroups.emplace_back(row_group, target_bank, retention_ms, rows_data[0].pattern_id, 0);
-
-	// to prevent a row being part of multiple WeakRowSets
-	clear_bitflip_history(bitflip_history);
+	return { row_group, target_bank, retention_ms, dataPatternType, 0 };
 }
 
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
 		    const vector<RowData> &rows_data, const std::string &row_group_pattern,
-		    char *buf, vector<RowGroup> &row_group)
+		    char *buf, vector<RowGroup> &rowGroups)
 {
 	// Write to DRAM
 	Program writeProg;
@@ -645,8 +634,17 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
 
 		if (fits_into_row_pattern(bitflips, phys_row_id)) {
-			buildRowGroup(row_group, row_group_pattern, rows_data, target_bank,
-				      retention_ms);
+			// remove this if you are trying to enable support for different
+			// input data patterns for different rows
+			assert(rows_data.size() == 1);
+
+			auto dataPatternType = rows_data[0].pattern_id;
+			auto rowGroup = buildRowGroup(row_group_pattern, target_bank, retention_ms,
+						      dataPatternType);
+			rowGroups.emplace_back(rowGroup);
+
+			// to prevent a row being part of multiple row groups
+			clear_bitflip_history(bitflip_history);
 		}
 	}
 }
