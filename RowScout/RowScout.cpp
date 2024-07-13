@@ -554,26 +554,32 @@ void init_row_pattern_fitter(const std::string &row_group_pattern,
 	}
 }
 
-bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
+bool fitsIntoRowPattern(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+			std::vector<uint> &locsToCheck, const std::vector<uint> &bitflips,
+			const uint rowId)
 {
-	// check if receiving row_id in order
-	if (bitflip_history.back().first != -1 && bitflip_history.back().first != (row_id - 1)) {
-		std::cerr << RED_TXT << "ERROR: Did not profile rows in order. Got row id "
-			  << row_id << " after row id " << bitflip_history.back().first
-			  << NORMAL_TXT << std::endl;
+	// Check if receiving rowId in order
+	if (!bitflipHistory.empty() && bitflipHistory.back().first != -1 &&
+	    bitflipHistory.back().first != (rowId - 1)) {
+		std::cerr << RED_TXT << "ERROR: Did not profile rows in order. Got row id " << rowId
+			  << " after row id " << bitflipHistory.back().first << NORMAL_TXT
+			  << std::endl;
 		exit(-1);
 	}
 
-	// remove the oldest entry in bitflip_history
-	bitflip_history.erase(bitflip_history.begin());
+	// Remove the oldest entry in bitflipHistory
+	if (!bitflipHistory.empty()) {
+		bitflipHistory.erase(bitflipHistory.begin());
+	}
 
-	// insert a new entry
-	bitflip_history.emplace_back(std::pair<uint, vector<uint> >(row_id, bitflips));
+	// Insert a new entry
+	bitflipHistory.emplace_back(rowId, bitflips);
 
-	// check if the current bitflip_history matches the pattern
-	for (auto loc : locs_to_check) {
-		if (bitflip_history[loc].second.empty())
+	// Check if the current bitflipHistory matches the pattern
+	for (auto loc : locsToCheck) {
+		if (bitflipHistory[loc].second.empty()) {
 			return false;
+		}
 	}
 	return true;
 }
@@ -633,7 +639,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		collect_bitflips(bitflips, buf + (log_row_id - first_row_id) * ROW_SIZE,
 				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
 
-		if (fits_into_row_pattern(bitflips, phys_row_id)) {
+		if (fitsIntoRowPattern(bitflip_history, locs_to_check, bitflips, phys_row_id)) {
 			// remove this if you are trying to enable support for different
 			// input data patterns for different rows
 			assert(rows_data.size() == 1);
