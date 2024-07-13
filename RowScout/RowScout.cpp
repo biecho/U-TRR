@@ -530,25 +530,28 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 // pairs of row_id and number of bitflips
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
 static std::vector<uint> locs_to_check;
-void init_row_pattern_fitter(const std::string &row_group_pattern)
-{
-	// initialize with row id -1 and empty bitflip vectors
-	bitflip_history = std::vector<std::pair<int, vector<uint> > >(
-		row_group_pattern.size(),
-		std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
 
-	for (uint i = 0; i < row_group_pattern.size(); i++) {
-		char c = row_group_pattern[i];
-		if (c == 'R')
-			locs_to_check.push_back(i);
-	}
-}
-
+// Initialize with row id -1 and empty bitflip vectors
 void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
 	for (auto &item : history) {
 		item.first = -1;
 		item.second.clear();
+	}
+}
+
+
+void init_row_pattern_fitter(const std::string &row_group_pattern,
+			     std::vector<std::pair<int, std::vector<uint>>> &history,
+			     std::vector<uint> &locs_to_check)
+{
+	clear_bitflip_history(history);
+
+	for (uint i = 0; i < row_group_pattern.size(); i++) {
+		char c = row_group_pattern[i];
+		if (c == 'R') {
+                    locs_to_check.push_back(i);
+		}
 	}
 }
 
@@ -826,14 +829,12 @@ int main(int argc, char **argv)
 		"typically used in Samsung chips.")(
 		"input_data,i", value(&input_data_pattern)->default_value(input_data_pattern),
 		"Specifies the data pattern to initialize rows with for profiling. "
-		"Defined value "
-		"are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: "
-		"inverse "
-		"colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered "
-		"(1010, 0101)")("append", bool_switch(&append_output),
-				"When specified, the output is appended to the "
-				"--out file (if it exists). "
-				"Otherwise the --out file is cleared.");
+		"Defined value are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: "
+		"inverse colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, "
+		"0101)")("append", bool_switch(&append_output),
+			 "When specified, the output is appended to the "
+			 "--out file (if it exists). "
+			 "Otherwise the --out file is cleared.");
 
 	variables_map vm;
 	store(parse_command_line(argc, argv, desc), vm);
@@ -879,7 +880,7 @@ int main(int argc, char **argv)
 		row_group_pattern.find_first_of('R'),
 		row_group_pattern.find_last_of('R') - row_group_pattern.find_first_of('R') + 1);
 
-	init_row_pattern_fitter(row_group_pattern);
+	init_row_pattern_fitter(row_group_pattern, bitflip_history, locs_to_check);
 
 	path out_dir(out_filename);
 	out_dir = out_dir.parent_path();
@@ -1024,7 +1025,6 @@ int main(int argc, char **argv)
 
 		auto cur_time = chrono::high_resolution_clock::now();
 		elapsed = cur_time - t_prog_started;
-		// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
 		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found "
 			  << rowGroups.size() - last_num_weak_rows << " new (" << rowGroups.size()
 			  << " total) row groups" << NORMAL_TXT << std::endl;
