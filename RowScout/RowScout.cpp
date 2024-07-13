@@ -173,31 +173,6 @@ void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowDa
 	}
 }
 
-bool in_same_bg(int bank1, int bank2);
-
-int get_total_ACT_cycs(const vector<int> &target_banks)
-{
-	int total_cycs = 4 * target_banks.size(); // for SMC_LI that sets the bank id register
-
-	for (int ind = 0; ind < (target_banks.size() - 1); ind++) {
-		if (in_same_bg(target_banks[ind], target_banks[ind + 1]))
-			total_cycs += 1 + trrdl_cycles;
-		else
-			total_cycs += 1 + trrds_cycles;
-	}
-
-	return total_cycs;
-}
-
-// figures out whether two banks are in the same bank group
-bool in_same_bg(int bank1, int bank2)
-{
-	int bg1 = bank1 / NUM_BANK_GROUPS;
-	int bg2 = bank2 / NUM_BANK_GROUPS;
-
-	return bg1 == bg2;
-}
-
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row, const uint row_batch_size,
 		 const vector<RowData> &rows_data)
 {
@@ -480,25 +455,10 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 	return batch_size;
 }
 
-void checkForLeftoverPCIeData(SoftMCPlatform &platform)
-{
-	// checking if there is more data to receive
-	uint additional_bytes = 0;
-
-	char *buf = new char[4];
-
-	while (additional_bytes += platform.receiveData(buf, 4)) { // try to receive 4 bytes
-		cout << "Received total of " << additional_bytes << " additional bytes" << endl;
-		cout << "Data: " << *(int *)buf << endl;
-	}
-
-	delete[] buf;
-}
-
 // pairs of row_id and number of bitflips
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
 static std::vector<uint> locs_to_check;
-void init_row_pattern_fitter(const std::string row_group_pattern)
+void init_row_pattern_fitter(const std::string& row_group_pattern)
 {
 	// initialize with row id -1 and empty bitflip vectors
 	bitflip_history = std::vector<std::pair<int, vector<uint> > >(row_group_pattern.size(),
@@ -576,47 +536,23 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
 
-	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms."
-	// << endl;
 	waitMS(retention_ms - prog_issue_duration.count());
 
 	// at this point we expect writing data to DRAM to be finished
 	auto t_end_ret_wait = chrono::high_resolution_clock::now();
-
-	chrono::duration<double, milli> write_ret_duration(t_end_ret_wait - t_start_issue_prog);
-	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention
-	// time took: " << write_ret_duration.count() << endl;
 
 	// READ DATA BACK AND CHECK ERRORS
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
 	readFromDRAM(readProg, target_bank, first_row_id, row_batch_size);
 	platform.execute(readProg);
-	// checkForLeftoverPCIeData(platform);
 	platform.receiveData(buf, ROW_SIZE * row_batch_size); // reading all RH_NUM_ROWS at once
-	// t_two_rows_recvd = chrono::high_resolution_clock::now();
-	// elapsed = t_two_rows_recvd - t_prog_started;
-	// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
-
-	bool check_time = false;
-	if (check_time) {
-		check_time = false;
-		auto t_two_rows_recvd = chrono::high_resolution_clock::now();
-
-		auto elapsed = t_two_rows_recvd - t_prog_started;
-		cout << "Time interval for reading back " << row_batch_size << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
-	}
-
-	// t_prog_started = chrono::high_resolution_clock::now();
 
 	// go over physical row IDs in order
 	for (int i = 0; i < row_batch_size; i++) {
 		PhysicalRowID phys_row_id = first_row_id + i;
 		LogicalRowID log_row_id = to_logical_row_id(phys_row_id);
 
-		// std::cout << "first_row_id: " << first_row_id << std::endl;
-		// std::cout << "row_batch_size: " << row_batch_size << std::endl;
-		// std::cout << "log_row_id: " << log_row_id << std::endl;
 		assert(log_row_id < (first_row_id + row_batch_size) && log_row_id >= first_row_id &&
 		       "ERROR: The used Logical to Physical row address mapping results in logical "
 		       "address out of bounds of the row_batch size. Consider revising the code.");
@@ -629,14 +565,6 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank, retention_ms);
 		}
 	}
-
-	// t_two_rows_recvd = chrono::high_resolution_clock::now();
-
-	// elapsed = t_two_rows_recvd - t_prog_started;
-	// cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
-
-	// cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 <<
-	// endl;
 }
 
 // return true if the same bit locations in WeakRowSet wrs experience bitflips
@@ -802,7 +730,6 @@ std::string wrs_to_string(const WeakRowSet &wrs)
 int main(int argc, char **argv)
 {
 	string out_filename = "./out.txt";
-	int test_mode = 0;
 	int target_bank = 1;
 	int target_row = -1;
 	int starting_ret_time = 64;
@@ -922,10 +849,7 @@ int main(int argc, char **argv)
 	}
 
 	platform.reset_fpga();
-	// sleep(1);
-
-	// disable refresh
-	platform.set_aref(false);
+	platform.set_aref(false); // disable refresh
 
 	// init random data generator
 	srand(0);
@@ -933,14 +857,9 @@ int main(int argc, char **argv)
 	assert(arg_log_phys_conv_scheme < uint(LogPhysRowIDScheme::MAX));
 	logical_physical_conversion_scheme = (LogPhysRowIDScheme)arg_log_phys_conv_scheme;
 
-	bitset<512> bitset_int_mask(0xFFFFFFFF);
-
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 	chrono::duration<double> elapsed{};
-	bool check_time;
-
-	target_row = 0;
 
 	const uint default_data_patterns[] = { 0x0, 0xFFFFFFFF, 0x00000000, 0x55555555, 0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
 
@@ -959,8 +878,6 @@ int main(int argc, char **argv)
 			for (int pos = 0; pos < 16; pos++) {
 				rdata <<= 32;
 				rand_int = (rand() << 16) | (0x0000FFFF & rand());
-				// cout << "generated random 32-bit: " << hex << rand_int << dec <<
-				// endl;
 				rdata |= rand_int;
 			}
 			break;
@@ -981,7 +898,6 @@ int main(int argc, char **argv)
 		default: {
 			cerr << "Undefined input data pattern mode: " << inp_pat << endl;
 			return -1;
-			break;
 		}
 		}
 
@@ -1071,7 +987,6 @@ int main(int argc, char **argv)
 		retention_ms += (int)(starting_ret_time * RETPROF_RETTIME_STEP);
 	}
 
-	// checkForLeftoverPCIeData(platform);
 	out_file.close();
 
 	std::cout << "The test has finished!" << endl;
