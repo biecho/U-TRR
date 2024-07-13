@@ -675,8 +675,6 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, vector<WeakRowSet> &candidate_weaks,
 		   vector<WeakRowSet> &row_group, const uint weak_rows_needed)
 {
-	// vector<WeakRow> multi_it_weaks(RETPROF_NUM_ITS);
-
 	for (auto &wr : candidate_weaks) {
 		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) " << wr.toString() << NORMAL_TXT << std::endl;
 		char buf[ROW_SIZE * wr.row_group.size()];
@@ -687,8 +685,6 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 
 		bool success = true;
 		for (uint i = 0; i < RETPROF_NUM_ITS; i++) {
-			// std::cout << "Iteration: " << i + 1 << "/" << RETPROF_NUM_ITS << endl;
-
 			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
 			// higher retention time
 			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id, wr,
@@ -699,9 +695,6 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 				break;
 			}
 
-			// std::cout << YELLOW_TXT << "HIGH RETENTION CHECK SUCCEEDED" << NORMAL_TXT
-			// << std::endl;
-
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
 			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f, wr.bank_id, wr,
@@ -711,9 +704,6 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 				success = false;
 				break;
 			}
-
-			// std::cout << YELLOW_TXT << "LOW RETENTION CHECK SUCCEEDED" << NORMAL_TXT
-			// << std::endl;
 
 			++progress_bar;
 			progress_bar.display();
