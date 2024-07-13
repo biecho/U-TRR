@@ -79,26 +79,26 @@ typedef struct RowData {
 	string label;
 } RowData;
 
-typedef struct Row {
+typedef struct WeakRow {
 	uint row_id;
 	std::vector<uint> bitflip_locs;
-	Row(uint _row_id, vector<uint> _bitflip_locs)
+	WeakRow(uint _row_id, vector<uint> _bitflip_locs)
 		: row_id(_row_id)
 		, bitflip_locs(_bitflip_locs)
 	{
 	}
 } WeakRow;
 
-JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
+JS_OBJECT_EXTERNAL(WeakRow, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 // JS_MEMBER(data_pattern_type));
 
 typedef struct WeakRowSet {
-	std::vector<Row> row_group;
+	std::vector<WeakRow> row_group;
 	uint bank_id;
 	uint ret_ms;
 	uint data_pattern_type;
 	uint rowdata_ind;
-	WeakRowSet(std::vector<Row> _weak_rows, uint _bank_id, uint _ret_ms,
+	WeakRowSet(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
 		   uint _data_pattern_type, uint _rowdata_ind)
 		: row_group(_weak_rows)
 		, bank_id(_bank_id)
@@ -111,7 +111,7 @@ typedef struct WeakRowSet {
 	{
 		for (auto &wr : row_group) {
 			auto it = std::find_if(other.row_group.begin(), other.row_group.end(),
-					       [&](const Row &w) {
+					       [&](const WeakRow &w) {
 						       return w.row_id == wr.row_id;
 					       });
 
@@ -623,7 +623,7 @@ void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_patt
 		      const vector<RowData> &rows_data, const uint target_bank,
 		      const uint batch_ind, const uint batch_first_row, const uint retention_ms)
 {
-	vector<Row> row_group;
+	vector<WeakRow> row_group;
 	uint vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
 	row_group.reserve(vec_size);
 
@@ -815,7 +815,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		   vector<WeakRowSet> &candidate_weaks, vector<WeakRowSet> &row_group,
 		   const uint weak_rows_needed)
 {
-	// vector<Row> multi_it_weaks(RETPROF_NUM_ITS);
+	// vector<WeakRow> multi_it_weaks(RETPROF_NUM_ITS);
 
 	for (auto &wr : candidate_weaks) {
 		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) "
@@ -881,7 +881,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 	// Sort the rows in each wrs based on the physical row IDs
 	for (auto &wr : row_group) {
 		std::sort(wr.row_group.begin(), wr.row_group.end(),
-			  [](const Row &lhs, const Row &rhs) {
+			  [](const WeakRow &lhs, const WeakRow &rhs) {
 				  return to_physical_row_id(lhs.row_id) <
 					 to_physical_row_id(rhs.row_id);
 			  });
@@ -1034,9 +1034,12 @@ int main(int argc, char **argv)
 	assert(arg_log_phys_conv_scheme < uint(LogPhysRowIDScheme::MAX));
 	logical_physical_conversion_scheme = (LogPhysRowIDScheme)arg_log_phys_conv_scheme;
 
+	bitset<512> bitset_int_mask(0xFFFFFFFF);
+
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 	chrono::duration<double> elapsed{};
+	bool check_time;
 
 	target_row = 0;
 
