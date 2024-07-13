@@ -142,6 +142,31 @@ typedef struct WeakRowSet {
 
 JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms), JS_MEMBER(data_pattern_type));
 
+LogicalRowID to_logical_row_id(uint physical_row_id) {
+	switch(logical_physical_conversion_scheme) {
+	case LogPhysRowIDScheme::SEQUENTIAL: {
+		return physical_row_id;
+		break;
+	}
+	case LogPhysRowIDScheme::SAMSUNG: {
+		if(physical_row_id & 0x8) {
+			PhysicalRowID log_row_id = physical_row_id & 0xFFFFFFF9;
+			log_row_id |= (~physical_row_id & 0x00000006); // set bit pos 3 and 2
+
+			return log_row_id;
+		} else {
+			return physical_row_id;
+		}
+		break;
+	}
+	default: {
+		std::cerr << "ERROR: unimplemented physical to logical row id conversion scheme!" << std::endl;
+	}
+	}
+
+	return 0;
+}
+
 // returns a vector of bit positions that experienced bitflips
 void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowData &rh_row)
 {
@@ -526,28 +551,25 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		    const uint row_batch_size, const vector<RowData> &rows_data, const std::string &row_group_pattern, char *buf,
 		    vector<WeakRowSet> &row_group)
 {
+	// Write to DRAM
 	Program writeProg;
 	writeToDRAM(writeProg, target_bank, first_row_id, row_batch_size, rows_data);
-
-	// execute the program
 	auto t_start_issue_prog = chrono::high_resolution_clock::now();
 	platform.execute(writeProg);
 	auto t_end_issue_prog = chrono::high_resolution_clock::now();
 
+	// Wait for retention
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
-
 	waitMS(retention_ms - prog_issue_duration.count());
 
-	// at this point we expect writing data to DRAM to be finished
-	auto t_end_ret_wait = chrono::high_resolution_clock::now();
-
-	// READ DATA BACK AND CHECK ERRORS
+	// Read from DRAM
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
 	readFromDRAM(readProg, target_bank, first_row_id, row_batch_size);
 	platform.execute(readProg);
 	platform.receiveData(buf, ROW_SIZE * row_batch_size); // reading all RH_NUM_ROWS at once
 
+	// Check errors
 	// go over physical row IDs in order
 	for (int i = 0; i < row_batch_size; i++) {
 		PhysicalRowID phys_row_id = first_row_id + i;
