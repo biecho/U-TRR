@@ -582,39 +582,20 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
 
-	// cout << "Issuing the DRAM write program took: " << prog_issue_duration.count() << " ms."
-	// << endl;
 	waitMS(retention_ms - prog_issue_duration.count());
 
 	// at this point we expect writing data to DRAM to be finished
 	auto t_end_ret_wait = chrono::high_resolution_clock::now();
 
 	chrono::duration<double, milli> write_ret_duration(t_end_ret_wait - t_start_issue_prog);
-	// cout << "Writing to DRAM + waiting for the target " << retention_ms << " ms retention
-	// time took: " << write_ret_duration.count() << endl;
 
 	// READ DATA BACK AND CHECK ERRORS
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
 	readFromDRAM(readProg, target_bank, wrs);
 	platform.execute(readProg);
-	// checkForLeftoverPCIeData(platform);
 	platform.receiveData(buf,
 			     ROW_SIZE * wrs.row_group.size()); // reading all RH_NUM_ROWS at once
-	// t_two_rows_recvd = chrono::high_resolution_clock::now();
-	// elapsed = t_two_rows_recvd - t_prog_started;
-	// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
-
-	bool check_time = false;
-	if (check_time) {
-		check_time = false;
-		auto t_two_rows_recvd = chrono::high_resolution_clock::now();
-
-		auto elapsed = t_two_rows_recvd - t_prog_started;
-		cout << "Time interval for reading back " << wrs.row_group.size() << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
-	}
-
-	// t_prog_started = chrono::high_resolution_clock::now();
 
 	for (int i = 0; i < wrs.row_group.size(); i++) {
 		vector<uint> bitflips;
@@ -636,19 +617,11 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 		}
 
 		// return false if all bitflip locations in a weak row were filtered out
-		if (wrs.row_group[i].bitflip_locs.size() == 0)
+		if (wrs.row_group[i].bitflip_locs.empty())
 			return false;
 	}
 
 	return true;
-
-	// t_two_rows_recvd = chrono::high_resolution_clock::now();
-
-	// elapsed = t_two_rows_recvd - t_prog_started;
-	// cout << "Error checking time: " << elapsed.count()*1000.0f << "ms" << endl;
-
-	// cout << "Finished testing rows " << start_row << "-" << start_row + row_batch_size - 1 <<
-	// endl;
 }
 
 // check if the candicate row groups have repeatable retention bitflips according to the RETPROF
@@ -731,7 +704,6 @@ int main(int argc, char **argv)
 {
 	string out_filename = "./out.txt";
 	int target_bank = 1;
-	int target_row = -1;
 	int starting_ret_time = 64;
 	int num_row_groups = 1;
 	string row_group_pattern = "R-R"; // to search for rows that have specific distances among
@@ -838,8 +810,6 @@ int main(int argc, char **argv)
 	else
 		out_file.open(out_filename);
 
-	vector<RowData> rows_data;
-
 	SoftMCPlatform platform;
 	int err;
 
@@ -865,6 +835,7 @@ int main(int argc, char **argv)
 
 	// this is ugly but I am leaving it like this to make things easier in case we decide to use
 	// different input data patterns for different rows.
+	vector<RowData> rows_data;
 	vector<int> input_data_patterns = { input_data_pattern };
 	for (int inp_pat : input_data_patterns) {
 		RowData rd;
