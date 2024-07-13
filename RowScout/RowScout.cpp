@@ -189,27 +189,6 @@ int get_total_ACT_cycs(const vector<int> &target_banks)
 	return total_cycs;
 }
 
-// update this function when changing the hammering part of the SoftMC
-// program
-int iters_per_round(int ref_interval_ns, int num_aggr_rows, const vector<int> &target_banks)
-{
-	int iters = 0;
-
-	int total_hammer_cycles = (target_banks.size() + get_total_ACT_cycs(target_banks) + tras_cycles) * num_aggr_rows +
-				  trp_cycles * (num_aggr_rows - 1) + 1 + 24 * 2;
-	int total_hammer_ns = total_hammer_cycles * FPGA_PERIOD;
-	iters = floor(ref_interval_ns / total_hammer_ns);
-
-	cout << "RowHammer iterations to perform within " << ref_interval_ns << "ns refresh interval: " << iters << endl;
-
-	return iters;
-}
-
-template <typename T> bool vec_contains(const vector<T> &vec, T val)
-{
-	return (find(vec.cbegin(), vec.cend(), val) != vec.cend());
-}
-
 // figures out whether two banks are in the same bank group
 bool in_same_bg(int bank1, int bank2)
 {
@@ -217,39 +196,6 @@ bool in_same_bg(int bank1, int bank2)
 	int bg2 = bank2 / NUM_BANK_GROUPS;
 
 	return bg1 == bg2;
-}
-
-void activateBanks(Program &program, const vector<int> &target_banks, int BANK_ADDR_REG, int ROW_ADDR_REG, bool is_fake_hammering = false)
-{
-	// activate rows in the target banks
-	int remaining_cycs = 0;
-	int total_act_cycles = 0;
-	for (int ind = 0; ind < target_banks.size(); ind++) {
-		int bank_id = target_banks[ind];
-		program.add_inst(SMC_LI(bank_id, BANK_ADDR_REG));
-		total_act_cycles += 4;
-
-		int cur_rrd = 0;
-		if ((ind + 1) < target_banks.size()) {
-			if (in_same_bg(bank_id, target_banks[ind + 1]))
-				cur_rrd = trrdl_cycles;
-			else
-				cur_rrd = trrds_cycles;
-		}
-
-		cur_rrd = min(0, cur_rrd - 4); // -4 because we use SMC_LI to update the
-					       // BANK_ADDR_REG
-
-		remaining_cycs = add_op_with_delay(program, is_fake_hammering ? SMC_NOP() : SMC_ACT(BANK_ADDR_REG, 0, ROW_ADDR_REG, 0),
-						   remaining_cycs, cur_rrd);
-		total_act_cycles += 4;
-	}
-
-	if (trcd_cycles > total_act_cycles)
-		remaining_cycs = trcd_cycles - total_act_cycles;
-
-	if (remaining_cycs > 0)
-		add_op_with_delay(program, SMC_NOP(), remaining_cycs, 0);
 }
 
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row, const uint row_batch_size,
