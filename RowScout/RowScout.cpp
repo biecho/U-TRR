@@ -120,23 +120,24 @@ typedef struct WeakRowSet {
 		return false;
 	}
 
-	std::string rows_as_str()
+	std::string toString()
 	{
-		std::string ret = "(";
+		std::ostringstream ss;
+		ss << "(";
 
-		for (auto &wr : row_group) {
-			ret = ret + to_string(wr.row_id) + ", ";
+		if (!row_group.empty()) {
+			// Append all but the last row ID followed by ", "
+			for (size_t i = 0; i < row_group.size() - 1; ++i) {
+				ss << row_group[i].row_id << ", ";
+			}
+			// Append the last row ID without ", "
+			ss << row_group.back().row_id;
 		}
 
-		// remove ', ' at the end
-		if (ret.size() > 1) {
-			ret = ret.substr(0, ret.size() - 2);
-		}
-
-		ret = ret + ")";
-
-		return ret;
+		ss << ")";
+		return ss.str();
 	}
+
 } WeakRowSet;
 
 JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms), JS_MEMBER(data_pattern_type));
@@ -781,7 +782,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 	// vector<WeakRow> multi_it_weaks(RETPROF_NUM_ITS);
 
 	for (auto &wr : candidate_weaks) {
-		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) " << wr.rows_as_str() << NORMAL_TXT << std::endl;
+		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) " << wr.toString() << NORMAL_TXT << std::endl;
 		char buf[ROW_SIZE * wr.row_group.size()];
 
 		// Setting up a progress bar
