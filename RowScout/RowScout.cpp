@@ -530,9 +530,6 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 	return batch_size;
 }
 
-// pairs of row_id and number of bitflips
-static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
-
 // Initialize with row id -1 and empty bitflip vectors
 void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
@@ -605,6 +602,7 @@ vector<Row> buildRowsFromHistory(const vector<std::pair<int, std::vector<uint> >
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
 		    const vector<RowData> &rows_data, char *buf, vector<RowGroup> &rowGroups,
+		    vector<std::pair<int, std::vector<uint>>> &bitflip_history,
 		    vector<uint> retentionCheckIndices)
 {
 	// Write to DRAM
@@ -906,6 +904,8 @@ int main(int argc, char **argv)
 		}
 	}
 
+	// pairs of row_id and number of bitflips
+	vector<std::pair<int, std::vector<uint> > > bitflip_history;
 	clear_bitflip_history(bitflip_history);
 
 	path out_dir(out_filename);
@@ -1022,6 +1022,7 @@ int main(int argc, char **argv)
 			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0],
 				       row_batch_size, rows_data, buf, candidateRowGroups,
+				       bitflip_history,
 				       retentionCheckIndices);
 
 			candidateRowGroups =
