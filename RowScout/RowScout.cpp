@@ -807,10 +807,8 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
 			if (!check_retention_failure_repeatability(
-				    platform,
-				    (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
-				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf,
-				    true)) {
+				    platform, retentionMs * 0.5f, candidateRowGroup.bank_id,
+				    candidateRowGroup, rows_data, buf, true)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT
 					  << std::endl;
