@@ -511,9 +511,12 @@ void init_row_pattern_fitter(const std::string row_group_pattern)
 	}
 }
 
-void clear_bitflip_history()
+void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
-	std::fill(bitflip_history.begin(), bitflip_history.end(), std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
+	for (auto &item : history) {
+		item.first = -1;
+		item.second.clear();
+	}
 }
 
 bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
@@ -556,7 +559,7 @@ void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_patt
 	wrs.emplace_back(row_group, target_bank, retention_ms, rows_data[0].pattern_id, 0);
 
 	// to prevent a row being part of multiple WeakRowSets
-	clear_bitflip_history();
+	clear_bitflip_history(bitflip_history);
 }
 
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank, const uint first_row_id,
@@ -1022,7 +1025,7 @@ int main(int argc, char **argv)
 		// apply the retention time to the corresponding row region
 		uint num_profiled_rows = 0;
 		while (num_profiled_rows < target_region_size) {
-			clear_bitflip_history();
+			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0], row_batch_size, rows_data, row_group_pattern, buf,
 				       candidate_weaks);
 
