@@ -32,7 +32,6 @@ using namespace std;
 
 #define RED_TXT "\033[31m"
 #define GREEN_TXT "\033[32m"
-#define YELLOW_TXT "\033[33m"
 #define BLUE_TXT "\033[34m"
 #define MAGENTA_TXT "\033[35m"
 #define NORMAL_TXT "\033[0m"
@@ -614,7 +613,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 }
 
 // return true if the same bit locations in WeakRowSet wrs experience bitflips
-bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank, WeakRowSet &wrs,
+bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank, WeakRowSet &wrs,
 					   const vector<RowData> &rows_data, char *buf, bool filter_out_failures = false)
 {
 	Program writeProg;
@@ -687,7 +686,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 		for (uint i = 0; i < RETPROF_NUM_ITS; i++) {
 			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
 			// higher retention time
-			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id, wr,
+			if (!check_retention_failure_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id, wr,
 								   rows_data, buf)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "HIGH RETENTION CHECK FAILED" << NORMAL_TXT << std::endl;
@@ -697,7 +696,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, v
 
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
-			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f, wr.bank_id, wr,
+			if (!check_retention_failure_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f, wr.bank_id, wr,
 								   rows_data, buf, true)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT << std::endl;
@@ -742,12 +741,12 @@ int main(int argc, char **argv)
 	int target_bank = 1;
 	int starting_ret_time = 64;
 	int num_row_groups = 1;
-	string row_group_pattern = "R-R"; // to search for rows that have specific distances among
-					  // each other.
+	// to search for rows that have specific distances among each other.
 	// For example, "R-R" (default) makes RowScout search for two rows that 1) are one row
 	// address apart and 2) have similar retention times. Similarly, "RR" makes RowScout search
 	// for two rows that 1) have consecutive row addresses and 2) have similar retention times.
 	// "R" makes RowScout search for any row that would experience a retention failure.
+	string row_group_pattern = "R-R";
 
 	int input_data_pattern = 1;
 	vector<int> row_range{ -1, -1 };
@@ -920,15 +919,7 @@ int main(int argc, char **argv)
 	vector<WeakRowSet> rowGroups;
 
 	uint num_wrs_written_out = 0;
-
 	uint last_num_weak_rows = 0;
-
-	// write out profiler configuration to the output file
-	// out_file << "RETPROF_NUM_ITS: " << RETPROF_NUM_ITS << std::endl;
-	// // out_file << "RETPROF_SUCCESSFUL_ITS_THRESH: " << RETPROF_SUCCESSFUL_ITS_THRESH <<
-	// std::endl; out_file << "RETPROF_RETTIME_MULT_H: " << RETPROF_RETTIME_MULT_H << std::endl;
-	// out_file << "RETPROF_RETTIME_STEP: " << RETPROF_RETTIME_STEP << std::endl;
-	// out_file << "============" << std::endl;
 
 	while (true) {
 		std::cout << "Profiling with " << retention_ms << " ms retention time" << std::endl;
