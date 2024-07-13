@@ -98,8 +98,7 @@ typedef struct WeakRowSet {
 	uint ret_ms;
 	uint data_pattern_type;
 	uint rowdata_ind;
-	WeakRowSet(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
-		   uint _data_pattern_type, uint _rowdata_ind)
+	WeakRowSet(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms, uint _data_pattern_type, uint _rowdata_ind)
 		: row_group(_weak_rows)
 		, bank_id(_bank_id)
 		, ret_ms(_ret_ms)
@@ -107,20 +106,20 @@ typedef struct WeakRowSet {
 		, rowdata_ind(_rowdata_ind)
 	{
 	}
-	bool contains_rows_in(const WeakRowSet &other)
-	{
-		for (auto &wr : row_group) {
-			auto it = std::find_if(other.row_group.begin(), other.row_group.end(),
-					       [&](const WeakRow &w) {
-						       return w.row_id == wr.row_id;
-					       });
 
-			if (it != other.row_group.end())
-				return true;
+	bool hasCommonRowWith(const WeakRowSet &other) const
+	{
+		for (const auto &current_row : row_group) {
+			for (const auto &other_row : other.row_group) {
+				if (current_row.row_id == other_row.row_id) {
+					return true;
+				}
+			}
 		}
 
 		return false;
 	}
+
 	std::string rows_as_str()
 	{
 		std::string ret = "(";
@@ -140,8 +139,7 @@ typedef struct WeakRowSet {
 	}
 } WeakRowSet;
 
-JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
-		   JS_MEMBER(data_pattern_type));
+JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms), JS_MEMBER(data_pattern_type));
 
 // returns a vector of bit positions that experienced bitflips
 void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowData &rh_row)
@@ -196,15 +194,12 @@ int iters_per_round(int ref_interval_ns, int num_aggr_rows, const vector<int> &t
 {
 	int iters = 0;
 
-	int total_hammer_cycles =
-		(target_banks.size() + get_total_ACT_cycs(target_banks) + tras_cycles) *
-			num_aggr_rows +
-		trp_cycles * (num_aggr_rows - 1) + 1 + 24 * 2;
+	int total_hammer_cycles = (target_banks.size() + get_total_ACT_cycs(target_banks) + tras_cycles) * num_aggr_rows +
+				  trp_cycles * (num_aggr_rows - 1) + 1 + 24 * 2;
 	int total_hammer_ns = total_hammer_cycles * FPGA_PERIOD;
 	iters = floor(ref_interval_ns / total_hammer_ns);
 
-	cout << "RowHammer iterations to perform within " << ref_interval_ns
-	     << "ns refresh interval: " << iters << endl;
+	cout << "RowHammer iterations to perform within " << ref_interval_ns << "ns refresh interval: " << iters << endl;
 
 	return iters;
 }
@@ -223,8 +218,7 @@ bool in_same_bg(int bank1, int bank2)
 	return bg1 == bg2;
 }
 
-void activateBanks(Program &program, const vector<int> &target_banks, int BANK_ADDR_REG,
-		   int ROW_ADDR_REG, bool is_fake_hammering = false)
+void activateBanks(Program &program, const vector<int> &target_banks, int BANK_ADDR_REG, int ROW_ADDR_REG, bool is_fake_hammering = false)
 {
 	// activate rows in the target banks
 	int remaining_cycs = 0;
@@ -245,10 +239,8 @@ void activateBanks(Program &program, const vector<int> &target_banks, int BANK_A
 		cur_rrd = min(0, cur_rrd - 4); // -4 because we use SMC_LI to update the
 					       // BANK_ADDR_REG
 
-		remaining_cycs = add_op_with_delay(
-			program,
-			is_fake_hammering ? SMC_NOP() : SMC_ACT(BANK_ADDR_REG, 0, ROW_ADDR_REG, 0),
-			remaining_cycs, cur_rrd);
+		remaining_cycs = add_op_with_delay(program, is_fake_hammering ? SMC_NOP() : SMC_ACT(BANK_ADDR_REG, 0, ROW_ADDR_REG, 0),
+						   remaining_cycs, cur_rrd);
 		total_act_cycles += 4;
 	}
 
@@ -259,8 +251,8 @@ void activateBanks(Program &program, const vector<int> &target_banks, int BANK_A
 		add_op_with_delay(program, SMC_NOP(), remaining_cycs, 0);
 }
 
-void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
-		 const uint row_batch_size, const vector<RowData> &rows_data)
+void writeToDRAM(Program &program, const uint target_bank, const uint start_row, const uint row_batch_size,
+		 const vector<RowData> &rows_data)
 {
 	const int REG_TMP_WRDATA = 15;
 	const int REG_BANK_ADDR = 12;
@@ -301,11 +293,8 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 	for (auto &row_data : rows_data) {
 		// set up the input data in the wide register
 		for (int pos = 0; pos < 16; pos++) {
-			program.add_inst(SMC_LI(
-				(((row_data.input_data_pattern >> 32 * pos) & bitset_int_mask)
-					 .to_ulong() &
-				 0xFFFFFFFF),
-				REG_TMP_WRDATA));
+			program.add_inst(SMC_LI((((row_data.input_data_pattern >> 32 * pos) & bitset_int_mask).to_ulong() & 0xFFFFFFFF),
+						REG_TMP_WRDATA));
 			program.add_inst(SMC_LDWD(REG_TMP_WRDATA, pos));
 		}
 
@@ -313,23 +302,20 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 		assert(remaining_cycs <= 0 && "I should add some delay here");
 
 		// activate the next row and increment the row address register
-		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0,
-				  trcd_cycles - 1);
+		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0, trcd_cycles - 1);
 
 		// write data to the row and precharge
 		program.add_inst(SMC_LI(0, REG_COL_ADDR));
 
 		string new_lbl = "INIT_ROW" + to_string(row_it++);
 		program.add_label(new_lbl);
-		add_op_with_delay(program, SMC_WRITE(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0), 0,
-				  0);
+		add_op_with_delay(program, SMC_WRITE(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0), 0, 0);
 		remaining_cycs = 0;
 		program.add_branch(program.BR_TYPE::BL, REG_COL_ADDR, REG_NUM_COLS, new_lbl);
 
 		// Wait for t(write-precharge)
 		// & precharge the open bank
-		remaining_cycs =
-			add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
+		remaining_cycs = add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
 	}
 
 	program.add_inst(SMC_ADDI(REG_BATCH_IT, rows_data.size(), REG_BATCH_IT));
@@ -338,8 +324,8 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 	program.add_inst(SMC_END());
 }
 
-void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint target_bank,
-		 const WeakRowSet &wrs, const vector<RowData> &rows_data)
+void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint target_bank, const WeakRowSet &wrs,
+		 const vector<RowData> &rows_data)
 {
 	SMC_REG REG_TMP_WRDATA = reg_alloc.allocate_SMC_REG();
 	SMC_REG REG_BANK_ADDR = reg_alloc.allocate_SMC_REG();
@@ -377,10 +363,7 @@ void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint tar
 	// set up the input data in the wide register
 	for (int pos = 0; pos < 16; pos++) {
 		program.add_inst(
-			SMC_LI((((rows_data[wrs.rowdata_ind].input_data_pattern >> 32 * pos) &
-				 bitset_int_mask)
-					.to_ulong() &
-				0xFFFFFFFF),
+			SMC_LI((((rows_data[wrs.rowdata_ind].input_data_pattern >> 32 * pos) & bitset_int_mask).to_ulong() & 0xFFFFFFFF),
 			       REG_TMP_WRDATA));
 		program.add_inst(SMC_LDWD(REG_TMP_WRDATA, pos));
 	}
@@ -388,8 +371,7 @@ void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint tar
 	for (uint row_id : rows_to_init) {
 		program.add_inst(SMC_LI(row_id, REG_ROW_ADDR));
 		// activate the next row and increment the row address register
-		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0,
-				  trcd_cycles - 1);
+		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0, trcd_cycles - 1);
 
 		// write data to the row and precharge
 		program.add_inst(SMC_LI(0, REG_COL_ADDR));
@@ -416,8 +398,7 @@ void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint tar
 	reg_alloc.free_SMC_REG(REG_NUM_COLS);
 }
 
-void readFromDRAM(Program &program, const uint target_bank, const uint start_row,
-		  const uint row_batch_size)
+void readFromDRAM(Program &program, const uint target_bank, const uint start_row, const uint row_batch_size)
 {
 	const int REG_BANK_ADDR = 12;
 	const int REG_ROW_ADDR = 13;
@@ -457,8 +438,7 @@ void readFromDRAM(Program &program, const uint target_bank, const uint start_row
 
 	string new_lbl = "READ_ROW";
 	program.add_label(new_lbl);
-	add_op_with_delay(program, SMC_READ(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0),
-			  remaining_cycs, 4);
+	add_op_with_delay(program, SMC_READ(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0), remaining_cycs, 4);
 	remaining_cycs = 0;
 	program.add_branch(program.BR_TYPE::BL, REG_COL_ADDR, REG_NUM_COLS, new_lbl);
 
@@ -500,23 +480,20 @@ void readFromDRAM(Program &program, const uint target_bank, const WeakRowSet &wr
 		program.add_inst(SMC_LI(wr.row_id, REG_ROW_ADDR));
 
 		// activate the next row and increment the row address register
-		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 0), 0,
-				  trcd_cycles - 1);
+		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 0), 0, trcd_cycles - 1);
 
 		// issue read cmds to read out the entire row and precharge
 		program.add_inst(SMC_LI(0, REG_COL_ADDR));
 
 		string new_lbl = createSMCLabel("READ_ROW");
 		program.add_label(new_lbl);
-		add_op_with_delay(program, SMC_READ(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0),
-				  remaining_cycs, 4);
+		add_op_with_delay(program, SMC_READ(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0), remaining_cycs, 4);
 		remaining_cycs = 0;
 		program.add_branch(program.BR_TYPE::BL, REG_COL_ADDR, REG_NUM_COLS, new_lbl);
 
 		// Wait for t(write-precharge)
 		// & precharge the open bank
-		remaining_cycs =
-			add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
+		remaining_cycs = add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
 	}
 
 	program.add_inst(SMC_END());
@@ -526,8 +503,8 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 {
 	uint pcie_cycles = ceil(5000 / FPGA_PERIOD); // assuming 5us pcie transfer latency
 	uint setup_cycles = 36;
-	uint pattern_loop_cycles = 64 /*write reg init*/ + 1 /*ACT*/ + trcd_cycles + 4 +
-				   (4 + 24) * NUM_COLS_PER_ROW /*row write*/ + 1 + trp_cycles;
+	uint pattern_loop_cycles =
+		64 /*write reg init*/ + 1 /*ACT*/ + trcd_cycles + 4 + (4 + 24) * NUM_COLS_PER_ROW /*row write*/ + 1 + trp_cycles;
 
 	// cycles(retention_ms) = pcie_cycles + setup_cycles +
 	// (X/NUM_PATTERNS)*(NUM_PATTERNS*pattern_loop_cycles + 28)
@@ -538,9 +515,8 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 	// setup_cycles)/(NUM_PATTERNS*pattern_loop_cycles + 28))*NUM_PATTERNS
 	ulong retention_cycles = floor((retention_ms * 1000000) / FPGA_PERIOD);
 
-	uint batch_size = ((retention_cycles - pcie_cycles - setup_cycles) /
-			   (num_data_patterns * pattern_loop_cycles + 28)) *
-			  num_data_patterns;
+	uint batch_size =
+		((retention_cycles - pcie_cycles - setup_cycles) / (num_data_patterns * pattern_loop_cycles + 28)) * num_data_patterns;
 
 	// cout << "Calculated initial batch size as " << batch_size << " for " << retention_ms << "
 	// ms" << endl; cout << "Rounding batch_size to the previous power-of-two number" << endl;
@@ -578,9 +554,8 @@ static std::vector<uint> locs_to_check;
 void init_row_pattern_fitter(const std::string row_group_pattern)
 {
 	// initialize with row id -1 and empty bitflip vectors
-	bitflip_history = std::vector<std::pair<int, vector<uint> > >(
-		row_group_pattern.size(),
-		std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
+	bitflip_history = std::vector<std::pair<int, vector<uint> > >(row_group_pattern.size(),
+								      std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
 
 	for (uint i = 0; i < row_group_pattern.size(); i++) {
 		char c = row_group_pattern[i];
@@ -591,17 +566,15 @@ void init_row_pattern_fitter(const std::string row_group_pattern)
 
 void clear_bitflip_history()
 {
-	std::fill(bitflip_history.begin(), bitflip_history.end(),
-		  std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
+	std::fill(bitflip_history.begin(), bitflip_history.end(), std::pair<int, std::vector<uint> >(-1, std::vector<uint>()));
 }
 
 bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 {
 	// check if receiving row_id in order
 	if (bitflip_history.back().first != -1 && bitflip_history.back().first != (row_id - 1)) {
-		std::cerr << RED_TXT << "ERROR: Did not profile rows in order. Got row id "
-			  << row_id << " after row id " << bitflip_history.back().first
-			  << NORMAL_TXT << std::endl;
+		std::cerr << RED_TXT << "ERROR: Did not profile rows in order. Got row id " << row_id << " after row id "
+			  << bitflip_history.back().first << NORMAL_TXT << std::endl;
 		exit(-1);
 	}
 
@@ -619,9 +592,8 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 	return true;
 }
 
-void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_pattern,
-		      const vector<RowData> &rows_data, const uint target_bank,
-		      const uint batch_ind, const uint batch_first_row, const uint retention_ms)
+void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_pattern, const vector<RowData> &rows_data,
+		      const uint target_bank, const uint batch_ind, const uint batch_first_row, const uint retention_ms)
 {
 	vector<WeakRow> row_group;
 	uint vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
@@ -640,10 +612,9 @@ void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_patt
 	clear_bitflip_history();
 }
 
-void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
-		    const uint first_row_id, const uint row_batch_size,
-		    const vector<RowData> &rows_data, const std::string &row_group_pattern,
-		    char *buf, vector<WeakRowSet> &row_group)
+void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank, const uint first_row_id,
+		    const uint row_batch_size, const vector<RowData> &rows_data, const std::string &row_group_pattern, char *buf,
+		    vector<WeakRowSet> &row_group)
 {
 	Program writeProg;
 	writeToDRAM(writeProg, target_bank, first_row_id, row_batch_size, rows_data);
@@ -683,8 +654,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 
 		auto elapsed = t_two_rows_recvd - t_prog_started;
-		cout << "Time interval for reading back " << row_batch_size
-		     << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
+		cout << "Time interval for reading back " << row_batch_size << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
 	}
 
 	// t_prog_started = chrono::high_resolution_clock::now();
@@ -706,8 +676,7 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
 
 		if (fits_into_row_pattern(bitflips, phys_row_id)) {
-			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank, i,
-					 first_row_id, retention_ms);
+			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank, i, first_row_id, retention_ms);
 		}
 	}
 
@@ -721,10 +690,8 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 }
 
 // return true if the same bit locations in WeakRowSet wrs experience bitflips
-bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint retention_ms,
-					   const uint target_bank, WeakRowSet &wrs,
-					   const vector<RowData> &rows_data, char *buf,
-					   bool filter_out_failures = false)
+bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank, WeakRowSet &wrs,
+					   const vector<RowData> &rows_data, char *buf, bool filter_out_failures = false)
 {
 	Program writeProg;
 	SoftMCRegAllocator reg_alloc(NUM_SOFTMC_REGS, reserved_regs);
@@ -766,8 +733,7 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 		auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 
 		auto elapsed = t_two_rows_recvd - t_prog_started;
-		cout << "Time interval for reading back " << wrs.row_group.size()
-		     << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
+		cout << "Time interval for reading back " << wrs.row_group.size() << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
 	}
 
 	// t_prog_started = chrono::high_resolution_clock::now();
@@ -779,14 +745,12 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 		// filter out bit locations that flipped
 		if (filter_out_failures) {
 			for (uint bf_loc : bitflips) {
-				auto it = std::find(wrs.row_group[i].bitflip_locs.begin(),
-						    wrs.row_group[i].bitflip_locs.end(), bf_loc);
+				auto it = std::find(wrs.row_group[i].bitflip_locs.begin(), wrs.row_group[i].bitflip_locs.end(), bf_loc);
 				if (it != wrs.row_group[i].bitflip_locs.end())
 					wrs.row_group[i].bitflip_locs.erase(it);
 			}
 		} else { // filter out bit locations that did not flip
-			for (auto it = wrs.row_group[i].bitflip_locs.begin();
-			     it != wrs.row_group[i].bitflip_locs.end(); it++) {
+			for (auto it = wrs.row_group[i].bitflip_locs.begin(); it != wrs.row_group[i].bitflip_locs.end(); it++) {
 				auto it_find = std::find(bitflips.begin(), bitflips.end(), *it);
 				if (it_find == bitflips.end())
 					wrs.row_group[i].bitflip_locs.erase(it--);
@@ -811,15 +775,13 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 
 // check if the candicate row groups have repeatable retention bitflips according to the RETPROF
 // configuration parameters clears candidate_weaks
-void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
-		   vector<WeakRowSet> &candidate_weaks, vector<WeakRowSet> &row_group,
-		   const uint weak_rows_needed)
+void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data, vector<WeakRowSet> &candidate_weaks,
+		   vector<WeakRowSet> &row_group, const uint weak_rows_needed)
 {
 	// vector<WeakRow> multi_it_weaks(RETPROF_NUM_ITS);
 
 	for (auto &wr : candidate_weaks) {
-		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) "
-			  << wr.rows_as_str() << NORMAL_TXT << std::endl;
+		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) " << wr.rows_as_str() << NORMAL_TXT << std::endl;
 		char buf[ROW_SIZE * wr.row_group.size()];
 
 		// Setting up a progress bar
@@ -832,12 +794,10 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 
 			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
 			// higher retention time
-			if (!check_retention_failute_repeatability(
-				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id,
-				    wr, rows_data, buf)) {
+			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id, wr,
+								   rows_data, buf)) {
 				progress_bar.done();
-				std::cout << RED_TXT << "HIGH RETENTION CHECK FAILED" << NORMAL_TXT
-					  << std::endl;
+				std::cout << RED_TXT << "HIGH RETENTION CHECK FAILED" << NORMAL_TXT << std::endl;
 				success = false;
 				break;
 			}
@@ -847,12 +807,10 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
-			if (!check_retention_failute_repeatability(
-				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
-				    wr.bank_id, wr, rows_data, buf, true)) {
+			if (!check_retention_failute_repeatability(platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f, wr.bank_id, wr,
+								   rows_data, buf, true)) {
 				progress_bar.done();
-				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT
-					  << std::endl;
+				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT << std::endl;
 				success = false;
 				break;
 			}
@@ -880,11 +838,9 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 
 	// Sort the rows in each wrs based on the physical row IDs
 	for (auto &wr : row_group) {
-		std::sort(wr.row_group.begin(), wr.row_group.end(),
-			  [](const WeakRow &lhs, const WeakRow &rhs) {
-				  return to_physical_row_id(lhs.row_id) <
-					 to_physical_row_id(rhs.row_id);
-			  });
+		std::sort(wr.row_group.begin(), wr.row_group.end(), [](const WeakRow &lhs, const WeakRow &rhs) {
+			return to_physical_row_id(lhs.row_id) < to_physical_row_id(rhs.row_id);
+		});
 	}
 }
 
@@ -917,14 +873,13 @@ int main(int argc, char **argv)
 
 	// try{
 	options_description desc("RowScout Options");
-	desc.add_options()("help,h", "Prints this usage statement.")(
-		"out,o", value(&out_filename)->default_value(out_filename),
-		"Specifies a path for the output file.")(
+	desc.add_options()("help,h", "Prints this usage statement.")("out,o", value(&out_filename)->default_value(out_filename),
+								     "Specifies a path for the output file.")(
 		"bank,b", value(&target_bank)->default_value(target_bank),
-		"Specifies the address of the bank to be profiled.")(
-		"range", value<vector<int> >(&row_range)->multitoken(),
-		"Specifies a range of row addresses (start and end values are both inclusive) to "
-		"be profiled. By default, the range spans an entire bank.")(
+		"Specifies the address of the bank to be profiled.")("range", value<vector<int> >(&row_range)->multitoken(),
+								     "Specifies a range of row addresses (start and end values are both "
+								     "inclusive) to "
+								     "be profiled. By default, the range spans an entire bank.")(
 		"init_ret_time,r", value(&starting_ret_time)->default_value(starting_ret_time),
 		"Specifies the initial retention time (in milliseconds) to test the rows specified "
 		"by --bank and --range. When RowScout cannot find a set of rows that satisfy the "
@@ -934,18 +889,15 @@ int main(int argc, char **argv)
 		"Specifies the distances among rows in a row group that RowScout must find. Must "
 		"include only 'R' and '-'. Example values: R-R (two one-row-address-apart rows "
 		"with similar retention times) , RR (two consecutively-addressed rows with similar "
-		"retention times).")("num_row_groups,w",
-				     value(&num_row_groups)->default_value(num_row_groups),
+		"retention times).")("num_row_groups,w", value(&num_row_groups)->default_value(num_row_groups),
 				     "Specifies the number of row groups that RowScout must find.")(
-		"log_phys_scheme",
-		value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
+		"log_phys_scheme", value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
 		"Specifies how to convert logical row IDs to physical row ids and the other way "
 		"around. Pass 0 (default) for sequential mapping, 1 for the mapping scheme "
-		"typically used in Samsung chips.")(
-		"input_data,i", value(&input_data_pattern)->default_value(input_data_pattern),
-		"Specifies the data pattern to initialize rows with for profiling. Defined value "
-		"are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: inverse "
-		"colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, 0101)")(
+		"typically used in Samsung chips.")("input_data,i", value(&input_data_pattern)->default_value(input_data_pattern),
+						    "Specifies the data pattern to initialize rows with for profiling. Defined value "
+						    "are 0: random, 1: all ones, 2: all zeros, 3: colstripe (0101), 4: inverse "
+						    "colstripe (1010), 5: checkered (0101, 1010), 6: inverse checkered (1010, 0101)")(
 		"append", bool_switch(&append_output),
 		"When specified, the output is appended to the --out file (if it exists). "
 		"Otherwise the --out file is cleared.");
@@ -959,8 +911,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	assert(row_range.size() == 2 &&
-	       "--row_range must specify exactly two tokens. E.g., <--row_range  0 5>");
+	assert(row_range.size() == 2 && "--row_range must specify exactly two tokens. E.g., <--row_range  0 5>");
 	if (row_range[0] > row_range[1])
 		swap(row_range[0], row_range[1]);
 
@@ -980,8 +931,7 @@ int main(int argc, char **argv)
 
 	// make sure row_group_pattern contains only R(r) or -
 	if (row_group_pattern.find_first_not_of("Rr-") != std::string::npos) {
-		cerr << RED_TXT << "ERROR: --row_group_pattern should contain only R or -"
-		     << NORMAL_TXT << std::endl;
+		cerr << RED_TXT << "ERROR: --row_group_pattern should contain only R or -" << NORMAL_TXT << std::endl;
 		exit(-1);
 	}
 
@@ -990,9 +940,8 @@ int main(int argc, char **argv)
 		c = toupper(c);
 
 	// the pattern should start with R and end with R
-	row_group_pattern = row_group_pattern.substr(
-		row_group_pattern.find_first_of('R'),
-		row_group_pattern.find_last_of('R') - row_group_pattern.find_first_of('R') + 1);
+	row_group_pattern = row_group_pattern.substr(row_group_pattern.find_first_of('R'),
+						     row_group_pattern.find_last_of('R') - row_group_pattern.find_first_of('R') + 1);
 
 	init_row_pattern_fitter(row_group_pattern);
 
@@ -1043,8 +992,7 @@ int main(int argc, char **argv)
 
 	target_row = 0;
 
-	const uint default_data_patterns[] = { 0x0,	   0xFFFFFFFF, 0x00000000, 0x55555555,
-					       0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
+	const uint default_data_patterns[] = { 0x0, 0xFFFFFFFF, 0x00000000, 0x55555555, 0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
 
 	// this is ugly but I am leaving it like this to make things easier in case we decide to use
 	// different input data patterns for different rows.
@@ -1128,16 +1076,14 @@ int main(int argc, char **argv)
 		uint num_profiled_rows = 0;
 		while (num_profiled_rows < target_region_size) {
 			clear_bitflip_history();
-			test_retention(platform, retention_ms, target_bank, row_range[0],
-				       row_batch_size, rows_data, row_group_pattern, buf,
+			test_retention(platform, retention_ms, target_bank, row_range[0], row_batch_size, rows_data, row_group_pattern, buf,
 				       candidate_weaks);
 
 			if (!candidate_weaks.empty()) {
 				// remove rows already identified as weak from candidate_weaks
 				for (auto &wr : row_group) {
-					for (auto it = candidate_weaks.begin();
-					     it != candidate_weaks.end(); it++) {
-						if (wr.contains_rows_in(*it))
+					for (auto it = candidate_weaks.begin(); it != candidate_weaks.end(); it++) {
+						if (wr.hasCommonRowWith(*it))
 							candidate_weaks.erase(it--);
 					}
 				}
@@ -1147,16 +1093,13 @@ int main(int argc, char **argv)
 			// and the retention time is determined accurately (i.e., we do not want a
 			// cell to fail for periods smaller than the determined retention time)
 			if (!candidate_weaks.empty()) {
-				std::cout << RED_TXT << "Found " << candidate_weaks.size()
-					  << " new candidate row groups." << NORMAL_TXT
+				std::cout << RED_TXT << "Found " << candidate_weaks.size() << " new candidate row groups." << NORMAL_TXT
 					  << std::endl;
-				analyze_weaks(platform, rows_data, candidate_weaks, row_group,
-					      num_row_groups);
+				analyze_weaks(platform, rows_data, candidate_weaks, row_group, num_row_groups);
 			}
 
 			while (num_wrs_written_out < row_group.size()) {
-				out_file << wrs_to_string(row_group[num_wrs_written_out++])
-					 << std::endl;
+				out_file << wrs_to_string(row_group[num_wrs_written_out++]) << std::endl;
 			}
 
 			if (row_group.size() >= num_row_groups)
@@ -1168,9 +1111,8 @@ int main(int argc, char **argv)
 		auto cur_time = chrono::high_resolution_clock::now();
 		elapsed = cur_time - t_prog_started;
 		// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
-		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found "
-			  << row_group.size() - last_num_weak_rows << " new (" << row_group.size()
-			  << " total) row groups" << NORMAL_TXT << std::endl;
+		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found " << row_group.size() - last_num_weak_rows << " new ("
+			  << row_group.size() << " total) row groups" << NORMAL_TXT << std::endl;
 		last_num_weak_rows = row_group.size();
 
 		if (row_group.size() >= num_row_groups)
