@@ -195,8 +195,9 @@ vector<RowGroup> filterCandidateRowGroups(const vector<RowGroup> &rowGroups,
 }
 
 // returns a vector of bit positions that experienced bitflips
-void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowData &rh_row)
+vector<uint> collect_bitflips(const char *read_data, const RowData &rh_row)
 {
+	vector<uint> bitflips;
 	bitset<512> read_data_bitset;
 
 	uint32_t *iread_data = (uint32_t *)read_data;
@@ -223,6 +224,8 @@ void collect_bitflips(vector<uint> &bitflips, const char *read_data, const RowDa
 			}
 		}
 	}
+
+	return bitflips;
 }
 
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
@@ -631,13 +634,13 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		       "ERROR: The used Logical to Physical row address mapping results in logical "
 		       "address out of bounds of the row_batch size. Consider revising the code.");
 
-		vector<uint> bitflips;
-		collect_bitflips(bitflips, buf + (log_row_id - first_row_id) * ROW_SIZE,
-				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
+		char *readData = buf + (log_row_id - first_row_id) * ROW_SIZE;
+		const auto& row = rows_data[(log_row_id - first_row_id) % rows_data.size()];
+		auto bitflips = collect_bitflips(readData, row);
 
 		if (fitsIntoRowPattern(bitflip_history, locs_to_check, bitflips, phys_row_id)) {
 			// remove this if you are trying to enable support for different
-			// input data patterns for different rows
+			// input readData patterns for different rows
 			assert(rows_data.size() == 1);
 
 			auto dataPatternType = rows_data[0].pattern_id;
@@ -685,8 +688,7 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 			     ROW_SIZE * wrs.rows.size()); // reading all RH_NUM_ROWS at once
 
 	for (int i = 0; i < wrs.rows.size(); i++) {
-		vector<uint> bitflips;
-		collect_bitflips(bitflips, buf + i * ROW_SIZE, rows_data[wrs.rowdata_ind]);
+		auto bitflips = collect_bitflips(buf + i * ROW_SIZE, rows_data[wrs.rowdata_ind]);
 
 		// filter out bit locations that flipped
 		if (filter_out_failures) {
