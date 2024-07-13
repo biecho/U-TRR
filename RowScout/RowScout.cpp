@@ -664,15 +664,15 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 	}
 }
 
-// return true if the same bit locations in RowGroup wrs experience bitflips
+// return true if the same bit locations in RowGroup rowGroup experience bitflips
 bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint retention_ms,
-					   const uint target_bank, RowGroup &wrs,
+					   const uint target_bank, RowGroup &rowGroup,
 					   const vector<RowData> &rows_data, char *buf,
 					   bool filter_out_failures = false)
 {
 	Program writeProg;
 	SoftMCRegAllocator reg_alloc(NUM_SOFTMC_REGS, reserved_regs);
-	writeToDRAM(writeProg, reg_alloc, target_bank, wrs, rows_data);
+	writeToDRAM(writeProg, reg_alloc, target_bank, rowGroup, rows_data);
 
 	// execute the program
 	auto t_start_issue_prog = chrono::high_resolution_clock::now();
@@ -691,33 +691,33 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 	// READ DATA BACK AND CHECK ERRORS
 	auto t_prog_started = chrono::high_resolution_clock::now();
 	Program readProg;
-	readFromDRAM(readProg, target_bank, wrs);
+	readFromDRAM(readProg, target_bank, rowGroup);
 	platform.execute(readProg);
 	platform.receiveData(buf,
-			     ROW_SIZE * wrs.rows.size()); // reading all RH_NUM_ROWS at once
+			     ROW_SIZE * rowGroup.rows.size()); // reading all RH_NUM_ROWS at once
 
-	for (int i = 0; i < wrs.rows.size(); i++) {
-		auto bitflips = collect_bitflips(buf + i * ROW_SIZE, rows_data[wrs.rowdata_ind]);
+	for (int i = 0; i < rowGroup.rows.size(); i++) {
+		auto bitflips = collect_bitflips(buf + i * ROW_SIZE, rows_data[rowGroup.rowdata_ind]);
 
 		// filter out bit locations that flipped
 		if (filter_out_failures) {
 			for (uint bf_loc : bitflips) {
-				auto it = std::find(wrs.rows[i].bitflip_locs.begin(),
-						    wrs.rows[i].bitflip_locs.end(), bf_loc);
-				if (it != wrs.rows[i].bitflip_locs.end())
-					wrs.rows[i].bitflip_locs.erase(it);
+				auto it = std::find(rowGroup.rows[i].bitflip_locs.begin(),
+						    rowGroup.rows[i].bitflip_locs.end(), bf_loc);
+				if (it != rowGroup.rows[i].bitflip_locs.end())
+					rowGroup.rows[i].bitflip_locs.erase(it);
 			}
 		} else { // filter out bit locations that did not flip
-			for (auto it = wrs.rows[i].bitflip_locs.begin();
-			     it != wrs.rows[i].bitflip_locs.end(); it++) {
+			for (auto it = rowGroup.rows[i].bitflip_locs.begin();
+			     it != rowGroup.rows[i].bitflip_locs.end(); it++) {
 				auto it_find = std::find(bitflips.begin(), bitflips.end(), *it);
 				if (it_find == bitflips.end())
-					wrs.rows[i].bitflip_locs.erase(it--);
+					rowGroup.rows[i].bitflip_locs.erase(it--);
 			}
 		}
 
 		// return false if all bitflip locations in a weak row were filtered out
-		if (wrs.rows[i].bitflip_locs.empty())
+		if (rowGroup.rows[i].bitflip_locs.empty())
 			return false;
 	}
 
