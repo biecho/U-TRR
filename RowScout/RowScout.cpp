@@ -671,8 +671,9 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
  * @param bitflipLocations Reference to a vector of bitflip locations to be filtered.
  * @param detectedBitflips Constant reference to a vector containing actual detected bitflips.
  */
-void removeFlippedLocations(std::vector<uint>& bitflipLocations,
-			    const std::vector<uint>& detectedBitflips) {
+void removeFlippedLocations(std::vector<uint> &bitflipLocations,
+			    const std::vector<uint> &detectedBitflips)
+{
 	// Create an iterator for manually managing the loop over bitflipLocations
 	auto it = bitflipLocations.begin();
 	while (it != bitflipLocations.end()) {
@@ -687,9 +688,9 @@ void removeFlippedLocations(std::vector<uint>& bitflipLocations,
 
 		// If found, erase it from bitflipLocations
 		if (found) {
-			it = bitflipLocations.erase(it);  // Erase returns the next valid iterator
+			it = bitflipLocations.erase(it); // Erase returns the next valid iterator
 		} else {
-			++it;  // Move to the next element
+			++it; // Move to the next element
 		}
 	}
 }
@@ -700,8 +701,9 @@ void removeFlippedLocations(std::vector<uint>& bitflipLocations,
  * @param bitflipLocations Reference to a vector of bitflip locations to be filtered.
  * @param detectedBitflips Constant reference to a vector containing actual detected bitflips.
  */
-void retainOnlyFlippedLocations(std::vector<uint>& bitflipLocations,
-				const std::vector<uint>& detectedBitflips) {
+void retainOnlyFlippedLocations(std::vector<uint> &bitflipLocations,
+				const std::vector<uint> &detectedBitflips)
+{
 	// Create an iterator for manually managing the loop over bitflipLocations
 	auto it = bitflipLocations.begin();
 	while (it != bitflipLocations.end()) {
@@ -716,9 +718,9 @@ void retainOnlyFlippedLocations(std::vector<uint>& bitflipLocations,
 
 		// If not found, erase it from bitflipLocations
 		if (!found) {
-			it = bitflipLocations.erase(it);  // Erase returns the next valid iterator
+			it = bitflipLocations.erase(it); // Erase returns the next valid iterator
 		} else {
-			++it;  // Move to the next element
+			++it; // Move to the next element
 		}
 	}
 }
@@ -726,7 +728,7 @@ void retainOnlyFlippedLocations(std::vector<uint>& bitflipLocations,
 bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint retention_ms,
 					   const uint target_bank, RowGroup &rowGroup,
 					   const vector<RowData> &rows_data, char *buf,
-					   bool filter_out_failures = false)
+					   bool filter_out_failures)
 {
 	Program writeProg;
 	SoftMCRegAllocator reg_alloc(NUM_SOFTMC_REGS, reserved_regs);
@@ -755,15 +757,17 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 		auto bitflips =
 			collect_bitflips(buf + i * ROW_SIZE, rows_data[rowGroup.rowdata_ind]);
 
+		vector<uint> &locations = rowGroup.rows[i].bitflip_locs;
 		if (filter_out_failures) {
-			removeFlippedLocations(rowGroup.rows[i].bitflip_locs, bitflips);
+			removeFlippedLocations(locations, bitflips);
 		} else {
-			retainOnlyFlippedLocations(rowGroup.rows[i].bitflip_locs, bitflips);
+			retainOnlyFlippedLocations(locations, bitflips);
 		}
 
 		// If all bitflip locations are filtered out, return false
-		if (rowGroup.rows[i].bitflip_locs.empty())
+		if (locations.empty()) {
 			return false;
+		}
 	}
 
 	return true; // All rows retained some bitflip locations indicating repeatable retention
@@ -773,7 +777,7 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 // check if the candicate row groups have repeatable retention bitflips according to the RETPROF
 // configuration parameters clears candidateRowGroups
 void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
-		   vector<RowGroup> &candidateRowGroups, vector<RowGroup> &row_group,
+		   vector<RowGroup> &candidateRowGroups, vector<RowGroup> &rowGroups,
 		   const uint weak_rows_needed)
 {
 	for (auto &candidateRowGroup : candidateRowGroups) {
@@ -789,9 +793,10 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		for (uint i = 0; i < RETPROF_NUM_ITS; i++) {
 			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
 			// higher retention time
+			uint retentionMs = (uint)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H;
 			if (!check_retention_failure_repeatability(
-				    platform, (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H,
-				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf)) {
+				    platform, retentionMs, candidateRowGroup.bank_id,
+				    candidateRowGroup, rows_data, buf, false)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "HIGH RETENTION CHECK FAILED" << NORMAL_TXT
 					  << std::endl;
@@ -802,8 +807,10 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
 			if (!check_retention_failure_repeatability(
-				    platform, (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
-				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf, true)) {
+				    platform,
+				    (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
+				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf,
+				    true)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT
 					  << std::endl;
@@ -821,16 +828,16 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		progress_bar.done();
 
 		std::cout << MAGENTA_TXT << "PASSED" << NORMAL_TXT << std::endl;
-		row_group.push_back(std::move(candidateRowGroup));
+		rowGroups.push_back(std::move(candidateRowGroup));
 
-		if (row_group.size() == weak_rows_needed)
+		if (rowGroups.size() == weak_rows_needed)
 			break;
 	}
 
 	candidateRowGroups.clear();
 
 	// Sort the rows in each wrs based on the physical row IDs
-	for (auto &wr : row_group) {
+	for (auto &wr : rowGroups) {
 		std::sort(wr.rows.begin(), wr.rows.end(), [](const Row &lhs, const Row &rhs) {
 			return to_physical_row_id(lhs.row_id) < to_physical_row_id(rhs.row_id);
 		});
