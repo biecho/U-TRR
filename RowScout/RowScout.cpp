@@ -546,20 +546,6 @@ void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &his
 	}
 }
 
-void init_row_pattern_fitter(const std::string &row_group_pattern,
-			     std::vector<std::pair<int, std::vector<uint> > > &history,
-			     std::vector<uint> &locs_to_check)
-{
-	clear_bitflip_history(history);
-
-	for (uint i = 0; i < row_group_pattern.size(); i++) {
-		char c = row_group_pattern[i];
-		if (c == 'R') {
-			locs_to_check.push_back(i);
-		}
-	}
-}
-
 /**
  * Checks that row IDs in a history are processed in a strict sequential order.
  * This function verifies that each new row ID immediately follows the last row ID in the
@@ -916,7 +902,13 @@ int main(int argc, char **argv)
 		row_group_pattern.find_first_of('R'),
 		row_group_pattern.find_last_of('R') - row_group_pattern.find_first_of('R') + 1);
 
-	init_row_pattern_fitter(row_group_pattern, bitflip_history, locs_to_check);
+	for (uint i = 0; i < row_group_pattern.size(); i++) {
+		if (row_group_pattern[i] == 'R') {
+			locs_to_check.push_back(i);
+		}
+	}
+
+	clear_bitflip_history(bitflip_history);
 
 	path out_dir(out_filename);
 	out_dir = out_dir.parent_path();
