@@ -535,6 +535,8 @@ static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
 static std::vector<uint> locs_to_check;
 
 vector<Row> getVector(const string &row_group_pattern);
+void ensureSequentialRowProcessing(vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+				   const uint rowId);
 // Initialize with row id -1 and empty bitflip vectors
 void clear_bitflip_history(std::vector<std::pair<int, std::vector<uint> > > &history)
 {
@@ -556,6 +558,56 @@ void init_row_pattern_fitter(const std::string &row_group_pattern,
 			locs_to_check.push_back(i);
 		}
 	}
+}
+
+/**
+ * Checks that row IDs in a history are processed in a strict sequential order.
+ * This function verifies that each new row ID immediately follows the last row ID in the
+ * bitflipHistory.
+ *
+ * @param bitflipHistory A reference to a vector holding pairs of row IDs and associated data.
+ * @param rowId The current row ID being processed.
+ *
+ * @throws std::runtime_error if the rowId does not sequentially follow the last ID in the history.
+ */
+void ensureSequentialRowProcessing(const std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+				   const uint rowId)
+{
+	if (!bitflipHistory.empty()) {
+		int lastRowId = bitflipHistory.back().first;
+		if (lastRowId != -1 && lastRowId != (rowId - 1)) {
+			std::cerr << RED_TXT
+				  << "ERROR: Rows are not processed in the correct order. "
+				  << "Expected row ID " << (lastRowId + 1) << ", but got row ID "
+				  << rowId << NORMAL_TXT << std::endl;
+			throw std::runtime_error("Rows must be processed in sequential order.");
+		}
+	}
+}
+
+bool verifyRowPatternConsistency(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+				 const std::vector<uint> &locsToCheck,
+				 const std::vector<uint> &bitflips, const uint rowId)
+{
+	ensureSequentialRowProcessing(bitflipHistory, rowId);
+
+	// Maintain the history size by removing the oldest entry if necessary
+	if (!bitflipHistory.empty()) {
+		bitflipHistory.erase(bitflipHistory.begin());
+	}
+
+	// Add the current row's bit flips to the history
+	bitflipHistory.emplace_back(rowId, bitflips);
+
+	// Check all required locations to see if they match the expected pattern
+	for (auto location : locsToCheck) {
+		if (location >= bitflipHistory.size() || bitflipHistory[location].second.empty()) {
+			return false; // Pattern does not match if any required location has no
+				      // bitflips
+		}
+	}
+
+	return true; // Return true if all checks pass
 }
 
 bool fitsIntoRowPattern(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
@@ -635,10 +687,11 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		       "address out of bounds of the row_batch size. Consider revising the code.");
 
 		char *readData = buf + (log_row_id - first_row_id) * ROW_SIZE;
-		const auto& row = rows_data[(log_row_id - first_row_id) % rows_data.size()];
+		const auto &row = rows_data[(log_row_id - first_row_id) % rows_data.size()];
 		auto bitflips = collect_bitflips(readData, row);
 
-		if (fitsIntoRowPattern(bitflip_history, locs_to_check, bitflips, phys_row_id)) {
+		if (verifyRowPatternConsistency(bitflip_history, locs_to_check, bitflips,
+						phys_row_id)) {
 			// remove this if you are trying to enable support for different
 			// input readData patterns for different rows
 			assert(rows_data.size() == 1);
