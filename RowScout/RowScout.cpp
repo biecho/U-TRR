@@ -583,11 +583,11 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 	bitflip_history.erase(bitflip_history.begin());
 
 	// insert a new entry
-	bitflip_history.push_back(std::pair<uint, vector<uint> >(row_id, bitflips));
+	bitflip_history.emplace_back(std::pair<uint, vector<uint> >(row_id, bitflips));
 
 	// check if the current bitflip_history matches the pattern
 	for (auto loc : locs_to_check) {
-		if (bitflip_history[loc].second.size() == 0)
+		if (bitflip_history[loc].second.empty())
 			return false;
 	}
 	return true;
