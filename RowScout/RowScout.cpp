@@ -602,7 +602,7 @@ vector<Row> buildRowsFromHistory(const vector<std::pair<int, std::vector<uint> >
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
 		    const vector<RowData> &rows_data, char *buf, vector<RowGroup> &rowGroups,
-		    vector<std::pair<int, std::vector<uint>>> &bitflip_history,
+		    vector<std::pair<int, std::vector<uint> > > &bitflip_history,
 		    vector<uint> retentionCheckIndices)
 {
 	// Write to DRAM
@@ -664,7 +664,65 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 	}
 }
 
-// return true if the same bit locations in RowGroup rowGroup experience bitflips
+/**
+ * Removes flipped bit locations from the provided list of bitflip locations
+ * based on a list of actual bitflips detected.
+ *
+ * @param bitflipLocations Reference to a vector of bitflip locations to be filtered.
+ * @param detectedBitflips Constant reference to a vector containing actual detected bitflips.
+ */
+void removeFlippedLocations(std::vector<uint>& bitflipLocations,
+			    const std::vector<uint>& detectedBitflips) {
+	// Create an iterator for manually managing the loop over bitflipLocations
+	auto it = bitflipLocations.begin();
+	while (it != bitflipLocations.end()) {
+		// Check if the current location is in the detectedBitflips list
+		bool found = false;
+		for (uint flip : detectedBitflips) {
+			if (*it == flip) {
+				found = true;
+				break;
+			}
+		}
+
+		// If found, erase it from bitflipLocations
+		if (found) {
+			it = bitflipLocations.erase(it);  // Erase returns the next valid iterator
+		} else {
+			++it;  // Move to the next element
+		}
+	}
+}
+
+/**
+ * Retains only those bit locations that have flipped according to the detected bitflips.
+ *
+ * @param bitflipLocations Reference to a vector of bitflip locations to be filtered.
+ * @param detectedBitflips Constant reference to a vector containing actual detected bitflips.
+ */
+void retainOnlyFlippedLocations(std::vector<uint>& bitflipLocations,
+				const std::vector<uint>& detectedBitflips) {
+	// Create an iterator for manually managing the loop over bitflipLocations
+	auto it = bitflipLocations.begin();
+	while (it != bitflipLocations.end()) {
+		// Check if the current location is not in the detectedBitflips list
+		bool found = false;
+		for (uint flip : detectedBitflips) {
+			if (*it == flip) {
+				found = true;
+				break;
+			}
+		}
+
+		// If not found, erase it from bitflipLocations
+		if (!found) {
+			it = bitflipLocations.erase(it);  // Erase returns the next valid iterator
+		} else {
+			++it;  // Move to the next element
+		}
+	}
+}
+
 bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint retention_ms,
 					   const uint target_bank, RowGroup &rowGroup,
 					   const vector<RowData> &rows_data, char *buf,
@@ -674,66 +732,54 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 	SoftMCRegAllocator reg_alloc(NUM_SOFTMC_REGS, reserved_regs);
 	writeToDRAM(writeProg, reg_alloc, target_bank, rowGroup, rows_data);
 
-	// execute the program
+	// Record start time of write operation
 	auto t_start_issue_prog = chrono::high_resolution_clock::now();
 	platform.execute(writeProg);
 	auto t_end_issue_prog = chrono::high_resolution_clock::now();
-
 	chrono::duration<double, milli> prog_issue_duration(t_end_issue_prog - t_start_issue_prog);
 
+	// Wait for the specified retention time, adjusted by the duration of the write operation
 	waitMS(retention_ms - prog_issue_duration.count());
 
-	// at this point we expect writing data to DRAM to be finished
+	// Record time after retention wait
 	auto t_end_ret_wait = chrono::high_resolution_clock::now();
 
-	chrono::duration<double, milli> write_ret_duration(t_end_ret_wait - t_start_issue_prog);
-
-	// READ DATA BACK AND CHECK ERRORS
-	auto t_prog_started = chrono::high_resolution_clock::now();
+	// Read data back from DRAM
 	Program readProg;
 	readFromDRAM(readProg, target_bank, rowGroup);
 	platform.execute(readProg);
-	platform.receiveData(buf,
-			     ROW_SIZE * rowGroup.rows.size()); // reading all RH_NUM_ROWS at once
+	platform.receiveData(buf, ROW_SIZE * rowGroup.rows.size());
 
+	// Analyze each row for bit flips and apply filters based on the filter_out_failures flag
 	for (int i = 0; i < rowGroup.rows.size(); i++) {
-		auto bitflips = collect_bitflips(buf + i * ROW_SIZE, rows_data[rowGroup.rowdata_ind]);
+		auto bitflips =
+			collect_bitflips(buf + i * ROW_SIZE, rows_data[rowGroup.rowdata_ind]);
 
-		// filter out bit locations that flipped
 		if (filter_out_failures) {
-			for (uint bf_loc : bitflips) {
-				auto it = std::find(rowGroup.rows[i].bitflip_locs.begin(),
-						    rowGroup.rows[i].bitflip_locs.end(), bf_loc);
-				if (it != rowGroup.rows[i].bitflip_locs.end())
-					rowGroup.rows[i].bitflip_locs.erase(it);
-			}
-		} else { // filter out bit locations that did not flip
-			for (auto it = rowGroup.rows[i].bitflip_locs.begin();
-			     it != rowGroup.rows[i].bitflip_locs.end(); it++) {
-				auto it_find = std::find(bitflips.begin(), bitflips.end(), *it);
-				if (it_find == bitflips.end())
-					rowGroup.rows[i].bitflip_locs.erase(it--);
-			}
+			removeFlippedLocations(rowGroup.rows[i].bitflip_locs, bitflips);
+		} else {
+			retainOnlyFlippedLocations(rowGroup.rows[i].bitflip_locs, bitflips);
 		}
 
-		// return false if all bitflip locations in a weak row were filtered out
+		// If all bitflip locations are filtered out, return false
 		if (rowGroup.rows[i].bitflip_locs.empty())
 			return false;
 	}
 
-	return true;
+	return true; // All rows retained some bitflip locations indicating repeatable retention
+		     // failures
 }
 
 // check if the candicate row groups have repeatable retention bitflips according to the RETPROF
-// configuration parameters clears candidate_weaks
+// configuration parameters clears candidateRowGroups
 void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
-		   vector<RowGroup> &candidate_weaks, vector<RowGroup> &row_group,
+		   vector<RowGroup> &candidateRowGroups, vector<RowGroup> &row_group,
 		   const uint weak_rows_needed)
 {
-	for (auto &wr : candidate_weaks) {
+	for (auto &candidateRowGroup : candidateRowGroups) {
 		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) "
-			  << wr.toString() << NORMAL_TXT << std::endl;
-		char buf[ROW_SIZE * wr.rows.size()];
+			  << candidateRowGroup.toString() << NORMAL_TXT << std::endl;
+		char buf[ROW_SIZE * candidateRowGroup.rows.size()];
 
 		// Setting up a progress bar
 		progresscpp::ProgressBar progress_bar(RETPROF_NUM_ITS, 70, '#', '-');
@@ -744,8 +790,8 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 			// test whether the row experiences bitflips with RETPROF_RETTIME_MULT_H
 			// higher retention time
 			if (!check_retention_failure_repeatability(
-				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H, wr.bank_id,
-				    wr, rows_data, buf)) {
+				    platform, (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H,
+				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "HIGH RETENTION CHECK FAILED" << NORMAL_TXT
 					  << std::endl;
@@ -756,8 +802,8 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 			// test whether the row never experiences bitflips with
 			// RETPROF_RETTIME_MULT_L lower retention time
 			if (!check_retention_failure_repeatability(
-				    platform, (int)wr.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
-				    wr.bank_id, wr, rows_data, buf, true)) {
+				    platform, (int)candidateRowGroup.ret_ms * RETPROF_RETTIME_MULT_H * 0.5f,
+				    candidateRowGroup.bank_id, candidateRowGroup, rows_data, buf, true)) {
 				progress_bar.done();
 				std::cout << RED_TXT << "LOW RETENTION CHECK FAILED" << NORMAL_TXT
 					  << std::endl;
@@ -775,13 +821,13 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 		progress_bar.done();
 
 		std::cout << MAGENTA_TXT << "PASSED" << NORMAL_TXT << std::endl;
-		row_group.push_back(std::move(wr));
+		row_group.push_back(std::move(candidateRowGroup));
 
 		if (row_group.size() == weak_rows_needed)
 			break;
 	}
 
-	candidate_weaks.clear();
+	candidateRowGroups.clear();
 
 	// Sort the rows in each wrs based on the physical row IDs
 	for (auto &wr : row_group) {
@@ -1022,8 +1068,7 @@ int main(int argc, char **argv)
 			clear_bitflip_history(bitflip_history);
 			test_retention(platform, retention_ms, target_bank, row_range[0],
 				       row_batch_size, rows_data, buf, candidateRowGroups,
-				       bitflip_history,
-				       retentionCheckIndices);
+				       bitflip_history, retentionCheckIndices);
 
 			candidateRowGroups =
 				filterCandidateRowGroups(rowGroups, candidateRowGroups);
