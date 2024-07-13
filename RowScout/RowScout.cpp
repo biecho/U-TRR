@@ -578,22 +578,30 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 	return true;
 }
 
-void build_WeakRowSet(vector<RowGroup> &wrs, const std::string &row_group_pattern,
+void buildRowGroup(vector<RowGroup> &rowGroups, const std::string &row_group_pattern,
 		      const vector<RowData> &rows_data, const uint target_bank,
 		      const uint retention_ms)
 {
 	vector<Row> row_group;
-	uint vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
+
+	auto vec_size = std::count(row_group_pattern.begin(), row_group_pattern.end(), 'R');
+
 	row_group.reserve(vec_size);
 
 	for (auto loc : locs_to_check) {
 		auto &bfh = bitflip_history[loc];
-		row_group.emplace_back(to_logical_row_id(bfh.first), bfh.second);
+		auto row_id = to_logical_row_id(bfh.first);
+		row_group.emplace_back(row_id, bfh.second);
 	}
 
-	assert(rows_data.size() == 1); // remove this if you are trying to enable support for
-				       // different input data patterns for different rows
-	wrs.emplace_back(row_group, target_bank, retention_ms, rows_data[0].pattern_id, 0);
+	// remove this if you are trying to enable support for different
+	// input data patterns for different rows
+	assert(rows_data.size() == 1);
+
+	// Here instead of the next lines, please just return the single row group.
+	// Update HERE.
+
+	rowGroups.emplace_back(row_group, target_bank, retention_ms, rows_data[0].pattern_id, 0);
 
 	// to prevent a row being part of multiple WeakRowSets
 	clear_bitflip_history(bitflip_history);
@@ -637,8 +645,8 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 				 rows_data[(log_row_id - first_row_id) % rows_data.size()]);
 
 		if (fits_into_row_pattern(bitflips, phys_row_id)) {
-			build_WeakRowSet(row_group, row_group_pattern, rows_data, target_bank,
-					 retention_ms);
+			buildRowGroup(row_group, row_group_pattern, rows_data, target_bank,
+				      retention_ms);
 		}
 	}
 }
