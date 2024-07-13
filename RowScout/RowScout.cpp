@@ -142,14 +142,14 @@ typedef struct WeakRowSet {
 
 JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms), JS_MEMBER(data_pattern_type));
 
-LogicalRowID to_logical_row_id(uint physical_row_id) {
-	switch(logical_physical_conversion_scheme) {
+LogicalRowID to_logical_row_id(uint physical_row_id)
+{
+	switch (logical_physical_conversion_scheme) {
 	case LogPhysRowIDScheme::SEQUENTIAL: {
 		return physical_row_id;
-		break;
 	}
 	case LogPhysRowIDScheme::SAMSUNG: {
-		if(physical_row_id & 0x8) {
+		if (physical_row_id & 0x8) {
 			PhysicalRowID log_row_id = physical_row_id & 0xFFFFFFF9;
 			log_row_id |= (~physical_row_id & 0x00000006); // set bit pos 3 and 2
 
@@ -157,7 +157,6 @@ LogicalRowID to_logical_row_id(uint physical_row_id) {
 		} else {
 			return physical_row_id;
 		}
-		break;
 	}
 	default: {
 		std::cerr << "ERROR: unimplemented physical to logical row id conversion scheme!" << std::endl;
@@ -483,7 +482,7 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 // pairs of row_id and number of bitflips
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
 static std::vector<uint> locs_to_check;
-void init_row_pattern_fitter(const std::string& row_group_pattern)
+void init_row_pattern_fitter(const std::string &row_group_pattern)
 {
 	// initialize with row id -1 and empty bitflip vectors
 	bitflip_history = std::vector<std::pair<int, vector<uint> > >(row_group_pattern.size(),
