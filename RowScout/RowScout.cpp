@@ -92,30 +92,30 @@ typedef struct Row {
 JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 // JS_MEMBER(data_pattern_type));
 
-typedef struct WeakRowSet {
-	std::vector<Row> row_group;
+typedef struct RowGroup {
+	std::vector<Row> rows;
 	uint bank_id;
 	uint ret_ms;
 	uint data_pattern_type;
 	uint rowdata_ind;
-	WeakRowSet(std::vector<Row> _weak_rows, uint _bank_id, uint _ret_ms,
+	RowGroup(std::vector<Row> _weak_rows, uint _bank_id, uint _ret_ms,
 		   uint _data_pattern_type, uint _rowdata_ind)
-		: row_group(_weak_rows)
+		: rows(_weak_rows)
 		, bank_id(_bank_id)
 		, ret_ms(_ret_ms)
 		, data_pattern_type(_data_pattern_type)
 		, rowdata_ind(_rowdata_ind)
 	{
 	}
-	bool contains_rows_in(const WeakRowSet &other)
+	bool contains_rows_in(const RowGroup &other)
 	{
-		for (auto &wr : row_group) {
-			auto it = std::find_if(other.row_group.begin(), other.row_group.end(),
+		for (auto &wr : rows) {
+			auto it = std::find_if(other.rows.begin(), other.rows.end(),
 					       [&](const Row &w) {
 						       return w.row_id == wr.row_id;
 					       });
 
-			if (it != other.row_group.end())
+			if (it != other.rows.end())
 				return true;
 		}
 
@@ -125,7 +125,7 @@ typedef struct WeakRowSet {
 	{
 		std::string ret = "(";
 
-		for (auto &wr : row_group) {
+		for (auto &wr : rows) {
 			ret = ret + to_string(wr.row_id) + ", ";
 		}
 
@@ -140,7 +140,7 @@ typedef struct WeakRowSet {
 	}
 } WeakRowSet;
 
-JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
+JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
 // returns a vector of bit positions that experienced bitflips
@@ -339,7 +339,7 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 }
 
 void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint target_bank,
-		 const WeakRowSet &wrs, const vector<RowData> &rows_data)
+		 const RowGroup &wrs, const vector<RowData> &rows_data)
 {
 	SMC_REG REG_TMP_WRDATA = reg_alloc.allocate_SMC_REG();
 	SMC_REG REG_BANK_ADDR = reg_alloc.allocate_SMC_REG();
@@ -363,8 +363,8 @@ void writeToDRAM(Program &program, SoftMCRegAllocator &reg_alloc, const uint tar
 
 	// initialize the entire range that corresponds to the psysical row ids according to the
 	// row_group_pattern
-	PhysicalRowID first_phys_row_id = to_physical_row_id(wrs.row_group.front().row_id);
-	PhysicalRowID last_phys_row_id = to_physical_row_id(wrs.row_group.back().row_id);
+	PhysicalRowID first_phys_row_id = to_physical_row_id(wrs.rows.front().row_id);
+	PhysicalRowID last_phys_row_id = to_physical_row_id(wrs.rows.back().row_id);
 	assert(last_phys_row_id >= first_phys_row_id);
 
 	std::vector<LogicalRowID> rows_to_init;
@@ -472,7 +472,7 @@ void readFromDRAM(Program &program, const uint target_bank, const uint start_row
 	program.add_inst(SMC_END());
 }
 
-void readFromDRAM(Program &program, const uint target_bank, const WeakRowSet &wrs)
+void readFromDRAM(Program &program, const uint target_bank, const RowGroup &wrs)
 {
 	const int REG_BANK_ADDR = 12;
 	const int REG_ROW_ADDR = 13;
@@ -496,7 +496,7 @@ void readFromDRAM(Program &program, const uint target_bank, const WeakRowSet &wr
 
 	/* ==== Read the data of rows in the row group ==== */
 
-	for (auto &wr : wrs.row_group) {
+	for (auto &wr : wrs.rows) {
 		program.add_inst(SMC_LI(wr.row_id, REG_ROW_ADDR));
 
 		// activate the next row and increment the row address register
@@ -619,7 +619,7 @@ bool fits_into_row_pattern(const vector<uint> &bitflips, const uint row_id)
 	return true;
 }
 
-void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_pattern,
+void build_WeakRowSet(vector<RowGroup> &wrs, const std::string &row_group_pattern,
 		      const vector<RowData> &rows_data, const uint target_bank,
 		      const uint batch_ind, const uint batch_first_row, const uint retention_ms)
 {
@@ -643,7 +643,7 @@ void build_WeakRowSet(vector<WeakRowSet> &wrs, const std::string &row_group_patt
 void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uint target_bank,
 		    const uint first_row_id, const uint row_batch_size,
 		    const vector<RowData> &rows_data, const std::string &row_group_pattern,
-		    char *buf, vector<WeakRowSet> &row_group)
+		    char *buf, vector<RowGroup> &row_group)
 {
 	Program writeProg;
 	writeToDRAM(writeProg, target_bank, first_row_id, row_batch_size, rows_data);
@@ -720,9 +720,9 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 	// endl;
 }
 
-// return true if the same bit locations in WeakRowSet wrs experience bitflips
+// return true if the same bit locations in RowGroup wrs experience bitflips
 bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint retention_ms,
-					   const uint target_bank, WeakRowSet &wrs,
+					   const uint target_bank, RowGroup &wrs,
 					   const vector<RowData> &rows_data, char *buf,
 					   bool filter_out_failures = false)
 {
@@ -755,7 +755,7 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 	platform.execute(readProg);
 	// checkForLeftoverPCIeData(platform);
 	platform.receiveData(buf,
-			     ROW_SIZE * wrs.row_group.size()); // reading all RH_NUM_ROWS at once
+			     ROW_SIZE * wrs.rows.size()); // reading all RH_NUM_ROWS at once
 	// t_two_rows_recvd = chrono::high_resolution_clock::now();
 	// elapsed = t_two_rows_recvd - t_prog_started;
 	// cout << "Time for reading two rows: " << elapsed.count()*1000 << "ms" << endl;
@@ -766,35 +766,35 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 		auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 
 		auto elapsed = t_two_rows_recvd - t_prog_started;
-		cout << "Time interval for reading back " << wrs.row_group.size()
+		cout << "Time interval for reading back " << wrs.rows.size()
 		     << "rows: " << elapsed.count() * 1000.0f << "ms" << endl;
 	}
 
 	// t_prog_started = chrono::high_resolution_clock::now();
 
-	for (int i = 0; i < wrs.row_group.size(); i++) {
+	for (int i = 0; i < wrs.rows.size(); i++) {
 		vector<uint> bitflips;
 		collect_bitflips(bitflips, buf + i * ROW_SIZE, rows_data[wrs.rowdata_ind]);
 
 		// filter out bit locations that flipped
 		if (filter_out_failures) {
 			for (uint bf_loc : bitflips) {
-				auto it = std::find(wrs.row_group[i].bitflip_locs.begin(),
-						    wrs.row_group[i].bitflip_locs.end(), bf_loc);
-				if (it != wrs.row_group[i].bitflip_locs.end())
-					wrs.row_group[i].bitflip_locs.erase(it);
+				auto it = std::find(wrs.rows[i].bitflip_locs.begin(),
+						    wrs.rows[i].bitflip_locs.end(), bf_loc);
+				if (it != wrs.rows[i].bitflip_locs.end())
+					wrs.rows[i].bitflip_locs.erase(it);
 			}
 		} else { // filter out bit locations that did not flip
-			for (auto it = wrs.row_group[i].bitflip_locs.begin();
-			     it != wrs.row_group[i].bitflip_locs.end(); it++) {
+			for (auto it = wrs.rows[i].bitflip_locs.begin();
+			     it != wrs.rows[i].bitflip_locs.end(); it++) {
 				auto it_find = std::find(bitflips.begin(), bitflips.end(), *it);
 				if (it_find == bitflips.end())
-					wrs.row_group[i].bitflip_locs.erase(it--);
+					wrs.rows[i].bitflip_locs.erase(it--);
 			}
 		}
 
 		// return false if all bitflip locations in a weak row were filtered out
-		if (wrs.row_group[i].bitflip_locs.size() == 0)
+		if (wrs.rows[i].bitflip_locs.size() == 0)
 			return false;
 	}
 
@@ -812,7 +812,7 @@ bool check_retention_failute_repeatability(SoftMCPlatform &platform, const uint 
 // check if the candicate row groups have repeatable retention bitflips according to the RETPROF
 // configuration parameters clears candidate_weaks
 void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
-		   vector<WeakRowSet> &candidate_weaks, vector<WeakRowSet> &row_group,
+		   vector<RowGroup> &candidate_weaks, vector<RowGroup> &row_group,
 		   const uint weak_rows_needed)
 {
 	// vector<Row> multi_it_weaks(RETPROF_NUM_ITS);
@@ -820,7 +820,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 	for (auto &wr : candidate_weaks) {
 		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) "
 			  << wr.rows_as_str() << NORMAL_TXT << std::endl;
-		char buf[ROW_SIZE * wr.row_group.size()];
+		char buf[ROW_SIZE * wr.rows.size()];
 
 		// Setting up a progress bar
 		progresscpp::ProgressBar progress_bar(RETPROF_NUM_ITS, 70, '#', '-');
@@ -880,7 +880,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 
 	// Sort the rows in each wrs based on the physical row IDs
 	for (auto &wr : row_group) {
-		std::sort(wr.row_group.begin(), wr.row_group.end(),
+		std::sort(wr.rows.begin(), wr.rows.end(),
 			  [](const Row &lhs, const Row &rhs) {
 				  return to_physical_row_id(lhs.row_id) <
 					 to_physical_row_id(rhs.row_id);
@@ -888,7 +888,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 	}
 }
 
-std::string wrs_to_string(const WeakRowSet &wrs)
+std::string wrs_to_string(const RowGroup &wrs)
 {
 	return JS::serializeStruct(wrs);
 }
@@ -1092,8 +1092,8 @@ int main(int argc, char **argv)
 	int retention_ms = starting_ret_time;
 	uint64_t buf_size = 0;
 	char *buf = nullptr;
-	vector<WeakRowSet> candidate_weaks;
-	vector<WeakRowSet> row_group;
+	vector<RowGroup> candidate_weaks;
+	vector<RowGroup> row_group;
 
 	uint num_wrs_written_out = 0;
 
