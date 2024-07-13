@@ -532,7 +532,7 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 
 // pairs of row_id and number of bitflips
 static std::vector<std::pair<int, std::vector<uint> > > bitflip_history;
-static std::vector<uint> locs_to_check;
+static std::vector<uint> retentionCheckIndices;
 
 vector<Row> getVector(const string &row_group_pattern);
 void ensureSequentialRowProcessing(vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
@@ -652,13 +652,13 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		// Add the current row's bit flips to the history
 		bitflip_history.emplace_back(phys_row_id, bitflips);
 
-		if (checkBitflipLocations(bitflip_history, locs_to_check)) {
+		if (checkBitflipLocations(bitflip_history, retentionCheckIndices)) {
 			// remove this if you are trying to enable support for different
 			// input readData patterns for different rows
 			assert(rows_data.size() == 1);
 
 			auto dataPatternType = rows_data[0].pattern_id;
-			auto rows = buildRowsFromHistory(bitflip_history, locs_to_check);
+			auto rows = buildRowsFromHistory(bitflip_history, retentionCheckIndices);
 
 			RowGroup rowGroup = { rows, target_bank, retention_ms, dataPatternType, 0 };
 			rowGroups.emplace_back(rowGroup);
@@ -904,7 +904,7 @@ int main(int argc, char **argv)
 
 	for (uint i = 0; i < row_group_pattern.size(); i++) {
 		if (row_group_pattern[i] == 'R') {
-			locs_to_check.push_back(i);
+			retentionCheckIndices.push_back(i);
 		}
 	}
 
