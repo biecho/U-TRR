@@ -570,7 +570,7 @@ void init_row_pattern_fitter(const std::string &row_group_pattern,
  *
  * @throws std::runtime_error if the rowId does not sequentially follow the last ID in the history.
  */
-void ensureSequentialRowProcessing(const std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
+void ensureSequentialRowProcessing(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
 				   const uint rowId)
 {
 	if (!bitflipHistory.empty()) {
@@ -601,13 +601,13 @@ bool verifyRowPatternConsistency(std::vector<std::pair<int, std::vector<uint> > 
 
 	// Check all required locations to see if they match the expected pattern
 	for (auto location : locsToCheck) {
+		// Pattern does not match if any required location has no bitflips
 		if (location >= bitflipHistory.size() || bitflipHistory[location].second.empty()) {
-			return false; // Pattern does not match if any required location has no
-				      // bitflips
+			return false;
 		}
 	}
 
-	return true; // Return true if all checks pass
+	return true;
 }
 
 bool fitsIntoRowPattern(std::vector<std::pair<int, std::vector<uint> > > &bitflipHistory,
