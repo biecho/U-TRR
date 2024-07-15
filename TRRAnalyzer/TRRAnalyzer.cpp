@@ -116,17 +116,17 @@ typedef struct HammerableRowSet {
 
 JS_OBJECT_EXTERNAL(WeakRow, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 
-typedef struct WeakRowSet {
+typedef struct RowGroup {
 	std::vector<WeakRow> row_group;
 	uint bank_id;
 	uint ret_ms;
 	uint index_in_file;
 	uint data_pattern_type;
 	uint rowdata_ind;
-	WeakRowSet()
+	RowGroup()
 	{
 	}
-	WeakRowSet(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
+	RowGroup(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
 		   uint _data_pattern_type, uint _rowdata_ind)
 		: row_group(_weak_rows)
 		, bank_id(_bank_id)
@@ -135,7 +135,7 @@ typedef struct WeakRowSet {
 		, rowdata_ind(_rowdata_ind)
 	{
 	}
-	bool contains_rows_in(const WeakRowSet &other)
+	bool contains_rows_in(const RowGroup &other)
 	{
 		for (auto &wr : row_group) {
 			auto it = std::find_if(other.row_group.begin(), other.row_group.end(),
@@ -166,9 +166,9 @@ typedef struct WeakRowSet {
 
 		return ret;
 	}
-} WeakRowSet;
+} RowGroup;
 
-JS_OBJECT_EXTERNAL(WeakRowSet, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
+JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
 // returns a vector of bit positions that experienced bitflips
@@ -413,15 +413,15 @@ bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
 	return true;
 }
 
-std::vector<WeakRowSet> parse_all_row_groups(boost::filesystem::ifstream &f_row_groups)
+std::vector<RowGroup> parse_all_row_groups(boost::filesystem::ifstream &f_row_groups)
 {
-	std::vector<WeakRowSet> row_groups;
+	std::vector<RowGroup> row_groups;
 	std::string s_weak;
 
 	uint i = 0;
 	while (getNextJSONObj(f_row_groups, s_weak)) {
 		JS::ParseContext context(s_weak);
-		WeakRowSet wr;
+		RowGroup wr;
 		context.parseTo(wr);
 		wr.index_in_file = i++;
 		row_groups.push_back(wr);
@@ -430,21 +430,21 @@ std::vector<WeakRowSet> parse_all_row_groups(boost::filesystem::ifstream &f_row_
 	return row_groups;
 }
 
-void parse_row_groups(boost::filesystem::ifstream &f_row_groups, vector<WeakRowSet> &row_groups)
+void parse_row_groups(boost::filesystem::ifstream &f_row_groups, vector<RowGroup> &row_groups)
 {
 	string s_weak;
 
 	uint i = 0;
 	while (getNextJSONObj(f_row_groups, s_weak)) {
 		JS::ParseContext context(s_weak);
-		WeakRowSet wr;
+		RowGroup wr;
 		context.parseTo(wr);
 		wr.index_in_file = i++;
 		row_groups.push_back(wr);
 	}
 }
 
-void pick_weaks(vector<WeakRowSet> &all_weak_rows, vector<WeakRowSet> &picked_weak_rows,
+void pick_weaks(vector<RowGroup> &all_weak_rows, vector<RowGroup> &picked_weak_rows,
 		const uint num_row_groups)
 {
 	for (uint i = picked_weak_rows.size(); i < num_row_groups; i++) {
@@ -854,7 +854,7 @@ bitset<512> setup_data_pattern(const uint data_pattern_type)
 	return data_pattern;
 }
 
-HammerableRowSet toHammerableRowSet(const WeakRowSet &wrs, const std::string row_layout)
+HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_layout)
 {
 	HammerableRowSet hr;
 
@@ -919,7 +919,7 @@ HammerableRowSet toHammerableRowSet(const WeakRowSet &wrs, const std::string row
 // runs a small test that checks whether the weak rows in wrs can be hammered using aggressor rows
 // determined based on the rh_type. If the aggressor rows are physically close to the weak rows,
 // then we should observe RowHammer bitflips.
-bool is_hammerable(SoftMCPlatform &platform, const WeakRowSet &wrs, const std::string row_layout,
+bool is_hammerable(SoftMCPlatform &platform, const RowGroup &wrs, const std::string row_layout,
 		   const bool cascaded_hammer)
 {
 	Program p_testRH;
@@ -997,7 +997,7 @@ bool is_hammerable(SoftMCPlatform &platform, const WeakRowSet &wrs, const std::s
 }
 
 void pick_dummy_aggressors(vector<uint> &dummy_aggrs, const uint dummy_aggrs_bank,
-			   const uint num_dummies, const vector<WeakRowSet> &weak_row_sets,
+			   const uint num_dummies, const vector<RowGroup> &weak_row_sets,
 			   const uint dummy_ids_offset)
 {
 	uint cur_dummy = TRR_DUMMY_ROW_DIST % NUM_ROWS;
@@ -1801,7 +1801,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 
 // Finds and returns a subset of the retention-profiled rows in wrs that match the provided
 // row_layout
-WeakRowSet adjust_wrs(const WeakRowSet &wrs, const std::string &row_layout)
+RowGroup adjust_wrs(const RowGroup &wrs, const std::string &row_layout)
 {
 	// calculate row_layout distance vector
 	std::vector<uint> wrs_type_dists;
@@ -1827,7 +1827,7 @@ WeakRowSet adjust_wrs(const WeakRowSet &wrs, const std::string &row_layout)
 	assert(first_r_ind != -1 &&
 	       "ERROR: There must be at least one R or U in the rowlayout (i.e., row_layout)");
 
-	WeakRowSet new_wrs = wrs;
+	RowGroup new_wrs = wrs;
 	bool match = false;
 
 	std::vector<uint> wrs_dists;
@@ -1898,8 +1898,8 @@ WeakRowSet adjust_wrs(const WeakRowSet &wrs, const std::string &row_layout)
 }
 
 void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
-					  vector<WeakRowSet> &allRowGroups,
-					  vector<WeakRowSet> &row_groups, const uint num_row_groups,
+					  vector<RowGroup> &allRowGroups,
+					  vector<RowGroup> &row_groups, const uint num_row_groups,
 					  const bool cascaded_hammer, const std::string row_layout)
 {
 	while (row_groups.size() != num_row_groups) {
@@ -1925,7 +1925,7 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
 	}
 }
 
-void get_row_groups_by_index(vector<WeakRowSet> &all_row_groups, vector<WeakRowSet> &row_groups,
+void get_row_groups_by_index(vector<RowGroup> &all_row_groups, vector<RowGroup> &row_groups,
 			     const vector<uint> &ind_weak_rows, const std::string &row_layout)
 {
 	for (uint ind : ind_weak_rows) {
@@ -1940,13 +1940,13 @@ void get_row_groups_by_index(vector<WeakRowSet> &all_row_groups, vector<WeakRowS
 			exit(-1);
 		}
 
-		WeakRowSet adjusted_wrs = adjust_wrs(all_row_groups[ind], row_layout);
+		RowGroup adjusted_wrs = adjust_wrs(all_row_groups[ind], row_layout);
 		row_groups.push_back(adjusted_wrs);
 	}
 }
 
 bool check_dummy_vs_rg_collision(const std::vector<uint> &dummy_aggrs,
-				 const std::vector<WeakRowSet> &vec_wrs)
+				 const std::vector<RowGroup> &vec_wrs)
 {
 	for (uint dummy : dummy_aggrs) {
 		for (const auto &wrs : vec_wrs) {
@@ -2299,11 +2299,8 @@ int main(int argc, char **argv)
 	chrono::duration<double> elapsed{};
 	bool check_time;
 
-	vector<WeakRowSet> row_groups;
 	vector<uint> picked_weak_indices;
-	row_groups.reserve(num_row_groups);
 	picked_weak_indices.reserve(num_row_groups);
-
 	boost::filesystem::ifstream f_row_groups;
 	boost::filesystem::path p_row_scout_file(row_scout_file);
 	if (!boost::filesystem::exists(p_row_scout_file)) {
@@ -2313,6 +2310,8 @@ int main(int argc, char **argv)
 	}
 	f_row_groups.open(p_row_scout_file);
 
+	vector<RowGroup> row_groups;
+	row_groups.reserve(num_row_groups);
 	auto all_row_groups = parse_all_row_groups(f_row_groups);
 	if (!row_group_indices.empty()) {
 		get_row_groups_by_index(all_row_groups, row_groups, row_group_indices, row_layout);
@@ -2363,8 +2362,8 @@ int main(int argc, char **argv)
 	// operations
 	std::vector<uint> after_init_dummies;
 	if (num_dummy_after_init > 0) {
-		std::vector<WeakRowSet> cur_rgs_and_dummies = row_groups;
-		WeakRowSet cur_dummies;
+		std::vector<RowGroup> cur_rgs_and_dummies = row_groups;
+		RowGroup cur_dummies;
 
 		// this is to pick different dummy than those we picked to hammer while hammering
 		// the actual aggressor rows
