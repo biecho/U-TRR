@@ -2279,7 +2279,6 @@ int main(int argc, char **argv)
 
 	uint arg_log_phys_conv_scheme = 0;
 
-	// try{
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")(
 		"out,o", value(&out_filename)->default_value(out_filename),
