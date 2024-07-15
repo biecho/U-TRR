@@ -1053,34 +1053,37 @@ int main(int argc, char **argv)
 	uint last_num_weak_rows = 0;
 
 	while (true) {
+		// Output the current profiling status with the retention time
 		std::cout << "Profiling with " << retention_ms << " ms retention time" << std::endl;
 
+		// Determine the maximum possible size of a row batch based on current retention time and data size
 		uint max_row_batch_size = determineRowBatchSize(retention_ms, rows_data.size());
+		// Calculate the size of the region of rows we're targeting
 		uint target_region_size = row_range[1] - row_range[0] + 1;
+		// Select the smaller size to ensure we do not exceed boundaries
 		uint row_batch_size = min(max_row_batch_size, target_region_size);
 
-		// check the size of the buffer to read the data to and increase its size if needed
+		// Ensure that the buffer is large enough to hold the batch data; resize if necessary
 		if (buf_size < row_batch_size * ROW_SIZE) {
 			buf_size = row_batch_size * ROW_SIZE;
-
 			delete[] buf;
 			buf = new char[buf_size];
 		}
 
-		// apply the retention time to the corresponding row region
+		// Start profiling rows within the target region until all are processed
 		uint num_profiled_rows = 0;
 		while (num_profiled_rows < target_region_size) {
+			// Clear the history of bitflips to start fresh for each batch
 			clear_bitflip_history(bitflip_history);
+			// Test the retention time for the current batch of rows
 			test_retention(platform, retention_ms, target_bank, row_range[0],
 				       row_batch_size, rows_data, buf, candidateRowGroups,
 				       bitflip_history, retentionCheckIndices);
 
-			candidateRowGroups =
-				filterCandidateRowGroups(rowGroups, candidateRowGroups);
+			// Filter the candidate row groups to find viable ones
+			candidateRowGroups = filterCandidateRowGroups(rowGroups, candidateRowGroups);
 
-			// analyze the candidate row groups to ensure the bitflips are repeatable
-			// and the retention time is determined accurately (i.e., we do not want a
-			// cell to fail for periods smaller than the determined retention time)
+			// Further analyze the filtered candidate row groups
 			if (!candidateRowGroups.empty()) {
 				std::cout << RED_TXT << "Found " << candidateRowGroups.size()
 					  << " new candidate row groups." << NORMAL_TXT
@@ -1089,17 +1092,21 @@ int main(int argc, char **argv)
 					      num_row_groups);
 			}
 
+			// Output any newly determined weak row groups to a file
 			while (num_wrs_written_out < rowGroups.size()) {
 				out_file << wrs_to_string(rowGroups[num_wrs_written_out++])
 					 << std::endl;
 			}
 
+			// Break if we have reached the required number of row groups
 			if (rowGroups.size() >= num_row_groups)
 				break;
 
+			// Increment the number of rows processed by the size of the current batch
 			num_profiled_rows += row_batch_size;
 		}
 
+		// Calculate elapsed time since the start of the program
 		auto cur_time = chrono::high_resolution_clock::now();
 		elapsed = cur_time - t_prog_started;
 		std::cout << GREEN_TXT << "[" << (int)elapsed.count() << " s] Found "
@@ -1107,9 +1114,11 @@ int main(int argc, char **argv)
 			  << " total) row groups" << NORMAL_TXT << std::endl;
 		last_num_weak_rows = rowGroups.size();
 
+		// Break the loop if the maximum number of row groups is reached
 		if (rowGroups.size() >= num_row_groups)
 			break;
 
+		// Increase the retention time for the next iteration
 		retention_ms += (int)(starting_ret_time * RETPROF_RETTIME_STEP);
 	}
 
