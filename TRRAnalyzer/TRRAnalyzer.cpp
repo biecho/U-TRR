@@ -303,16 +303,6 @@ void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 	program.add_inst(SMC_END());
 }
 
-void waitForRetentionTime(const uint ret_time_ms)
-{
-	static constexpr chrono::duration<double, milli> min_sleep_duration(1);
-	auto start = chrono::high_resolution_clock::now();
-	while (chrono::duration<double, milli>(chrono::high_resolution_clock::now() - start)
-		       .count() < ret_time_ms) {
-		this_thread::sleep_for(min_sleep_duration);
-	}
-}
-
 void readFromDRAM(Program &program, const uint target_bank, const uint start_row,
 		  const uint row_batch_size)
 {
@@ -403,26 +393,6 @@ uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns
 	// cout << "The final batch_size: " << batch_size << endl;
 
 	return batch_size;
-}
-
-void checkForLeftoverPCIeData(SoftMCPlatform &platform)
-{
-	// checking if there is more data to receive
-	uint additional_bytes = 0;
-
-	char *buf = new char[4];
-
-	while (additional_bytes += platform.receiveData(buf, 4)) { // try to receive 4 bytes
-		cout << "Received total of " << additional_bytes << " additional bytes" << endl;
-		cout << "Data: " << *(int *)buf << endl;
-	}
-
-	delete[] buf;
-}
-
-std::string wrs_to_string(const WeakRowSet &wrs)
-{
-	return JS::serializeStruct(wrs);
 }
 
 bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
@@ -544,68 +514,6 @@ void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
 }
 
-void init_data_row_range(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
-			 const SMC_REG reg_num_cols, const uint first_row_id,
-			 const uint last_row_id, const bitset<512> &data_patt)
-{
-	uint initial_free_regs = reg_alloc.num_free_regs();
-
-	bitset<512> bitset_int_mask(0xFFFFFFFF);
-
-	prog.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each WRITE writes 8 columns
-	SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
-	SMC_REG reg_col_addr = reg_alloc.allocate_SMC_REG();
-
-	SMC_REG reg_last_row_id = reg_alloc.allocate_SMC_REG();
-	prog.add_inst(SMC_LI(first_row_id, reg_row_addr));
-	prog.add_inst(SMC_LI(last_row_id + 1, reg_last_row_id)); // +1 because we don't have
-								 // BL_TYPE::BLE
-
-	// initialize the wide register that contains data to write to DRAM
-	SMC_REG reg_wrdata = reg_alloc.allocate_SMC_REG();
-	for (int pos = 0; pos < 16; pos++) {
-		prog.add_inst(SMC_LI((((data_patt >> 32 * pos) & bitset_int_mask).to_ulong() &
-				      0xFFFFFFFF),
-				     reg_wrdata));
-		prog.add_inst(SMC_LDWD(reg_wrdata, pos));
-	}
-
-	std::string lbl_init_row_it = createSMCLabel("INIT_ROW_IT");
-	prog.add_label(lbl_init_row_it);
-	// activate the target row
-	uint remaining = add_op_with_delay(prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 1), 0,
-					   trcd_cycles - 5);
-
-	// write data to the row and precharge
-	add_op_with_delay(prog, SMC_LI(0, reg_col_addr), remaining, 0);
-
-	string new_lbl = createSMCLabel("INIT_ROW");
-	prog.add_label(new_lbl);
-	add_op_with_delay(prog, SMC_WRITE(reg_bank_addr, 0, reg_col_addr, 1, 0, 0), 0, 0);
-	prog.add_branch(prog.BR_TYPE::BL, reg_col_addr, reg_num_cols, new_lbl);
-
-	// precharge the open bank
-	add_op_with_delay(prog, SMC_PRE(reg_bank_addr, 0, 0), 0, 0); // no need for tRP since branch
-								     // latency is 24 cycles
-	prog.add_branch(prog.BR_TYPE::BL, reg_row_addr, reg_last_row_id, lbl_init_row_it);
-
-	reg_alloc.free_SMC_REG(reg_row_addr);
-	reg_alloc.free_SMC_REG(reg_col_addr);
-	reg_alloc.free_SMC_REG(reg_last_row_id);
-	reg_alloc.free_SMC_REG(reg_wrdata);
-
-	assert(reg_alloc.num_free_regs() == initial_free_regs);
-}
-
-void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
-		   const SMC_REG reg_num_cols, const uint target_row,
-		   const bitset<512> &data_pattern)
-{
-	vector<uint> rows_to_init{ target_row };
-	vector<bitset<512> > data_patts{ data_pattern };
-	init_row_data(prog, reg_alloc, reg_bank_addr, reg_num_cols, rows_to_init, data_patts);
-}
-
 void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
 		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
 		       const bool cascaded_hammer, const uint hammer_duration);
@@ -682,7 +590,7 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
 		       const bool cascaded_hammer, const uint hammer_duration)
 {
-	if (rows_to_hammer.size() < 1)
+	if (rows_to_hammer.empty())
 		return; // nothing to hammer
 
 	uint initial_free_regs = reg_alloc.num_free_regs();
@@ -703,7 +611,7 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 
 		auto hammers_per_round = num_hammers;
 
-		while (1) {
+		while (true) {
 			auto min_non_zero =
 				std::min_element(hammers_per_round.begin(), hammers_per_round.end(),
 						 [](const uint &a, const uint &b) {
@@ -893,16 +801,6 @@ void read_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 
 	reg_alloc.free_SMC_REG(reg_row_addr);
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
-}
-
-void read_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
-		   const SMC_REG reg_num_cols, const WeakRowSet wrs)
-{
-	vector<uint> rows_to_read;
-	rows_to_read.reserve(wrs.row_group.size());
-	for (auto &wr : wrs.row_group)
-		rows_to_read.push_back(wr.row_id);
-	read_row_data(prog, reg_alloc, reg_bank_addr, reg_num_cols, rows_to_read);
 }
 
 bitset<512> setup_data_pattern(const uint data_pattern_type)
@@ -1563,36 +1461,6 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 	}
 }
 
-void perform_dummy_read(SoftMCPlatform &platform)
-{
-	Program prog;
-	SoftMCRegAllocator reg_alloc = SoftMCRegAllocator(NUM_SOFTMC_REGS, reserved_regs);
-
-	SMC_REG reg_bank_id = reg_alloc.allocate_SMC_REG();
-	SMC_REG reg_row_id = reg_alloc.allocate_SMC_REG();
-	SMC_REG reg_col_id = reg_alloc.allocate_SMC_REG();
-
-	add_op_with_delay(prog, SMC_LI(0, reg_bank_id), 0, 0);
-	add_op_with_delay(prog, SMC_LI(0, reg_row_id), 0, 0);
-	add_op_with_delay(prog, SMC_LI(0, reg_col_id), 0, 0);
-
-	add_op_with_delay(prog, SMC_ACT(reg_bank_id, 0, reg_row_id, 0), 0, trcd_cycles);
-	add_op_with_delay(prog, SMC_READ(reg_bank_id, 0, reg_col_id, 0, 0, 0), 0,
-			  tras_cycles - trcd_cycles);
-	add_op_with_delay(prog, SMC_PRE(reg_bank_id, 0, 0), 0, trp_cycles);
-
-	prog.add_inst(SMC_END());
-	platform.execute(prog);
-#ifdef PRINT_SOFTMC_PROGS
-	std::cout << "--- SoftMCProg: Performing a dummy read ---" << std::endl;
-	prog.pretty_print();
-#endif
-
-	// we put 64 bytes to the PCie bus. We need to clear this data
-	char cl[64];
-	platform.receiveData(cl, 64);
-}
-
 void waitMS_softmc(const uint ret_time_ms, Program *prog)
 {
 	// convert milliseconds to SoftMC cycles
@@ -1683,7 +1551,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 	// this is an attempt to reset any REF related state
 	if (refs_after_init > 0) {
 		// auto t_start_issue_refs = chrono::high_resolution_clock::now();
-		if (after_init_dummies.size() == 0) {
+		if (after_init_dummies.empty()) {
 			if (!use_single_softmc_prog)
 				issue_REFs(platform, refs_after_init);
 			else
@@ -1779,7 +1647,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 			waitMS_softmc(wait_ms, &single_prog);
 	}
 
-	if (hammers_before_wait.size() > 0) {
+	if (!hammers_before_wait.empty()) {
 		if (!use_single_softmc_prog)
 			hammer_hrs(platform, hammerable_rows, hammers_before_wait, cascaded_hammer,
 				   1, skip_hammering_aggr | ignore_aggrs, ignore_dummy_hammers,
@@ -1851,7 +1719,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 	if (skip_hammering_aggr) { // no need to wait and read any rows back if we are going to skip
 				   // operating on the weak rows
 		// just returning an empty vector
-		return vector<vector<uint> >();
+		return {};
 	}
 
 	// std::cout << YELLOW_TXT << "(2nd Wait) Waiting for (ms): " <<
@@ -1899,11 +1767,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 	if (exec_prog_and_clean) {
 		prog_read->add_inst(SMC_END());
 		platform.execute(*prog_read);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Reading the Victim rows ---" << std::endl;
-		prog_read->pretty_print();
-#endif
-
 		delete prog_read;
 		delete reg_alloc;
 	} else {
@@ -1916,12 +1779,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 
 		single_prog.add_inst(SMC_END());
 		platform.execute(single_prog);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Running the experiments as a single SoftMC program "
-			     "---"
-			  << std::endl;
-		single_prog.pretty_print();
-#endif
 
 		single_prog_reg_alloc.free_SMC_REG(reg_iter_counter);
 		single_prog_reg_alloc.free_SMC_REG(reg_num_iters);
@@ -1933,8 +1790,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 		ulong read_data_size = ROW_SIZE * total_victim_rows;
 		char buf[read_data_size * 2];
 		platform.receiveData(buf, read_data_size);
-		// std::cout << BLUE_TXT << "Successfully read all the data!" << NORMAL_TXT <<
-		// std::endl;
 
 		vector<uint> bitflips;
 		loc_bitflips.reserve(total_victim_rows);
@@ -1948,14 +1803,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 				row_it++;
 
 				loc_bitflips.push_back(bitflips);
-
-				// if(bitflips.size() == 0)
-				//     std::cout << RED_TXT << "[Weak Row " << row_groups[i].row_id
-				//     << "] Did not find any bitflips." << NORMAL_TXT << std::endl;
-				// else
-				//     std::cout << GREEN_TXT << "[Weak Row " <<
-				//     row_groups[i].row_id << "] Found " << bitflips.size() << "
-				//     bitflip(s)." << NORMAL_TXT << std::endl;
 			}
 
 			for (uint uni_ind = 0; uni_ind < hrs.uni_ids.size(); uni_ind++) {
@@ -1968,45 +1815,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 			}
 		}
 		assert(row_it == total_victim_rows);
-	} else {
-		// allocate a large enough buffer to read the entire experiment data at once
-		// get data from PCIe
-
-		// UPDATE: we can actually read iteration by iteration since each iteration takes a
-		// long time to complete because of the wait times. So, it is quite unlikely that
-		// the PCIe will be a bottleneck Moving this to the main function where we update
-		// the progress bar
-
-		// ulong read_data_size = ROW_SIZE*total_victim_rows*num_iterations;
-		// char* buf = new char[read_data_size];
-		// platform.receiveData(buf, read_data_size);
-
-		// vector<uint> bitflips;
-		// num_bitflips.reserve(total_victim_rows*num_iterations);
-
-		// for(uint iter_id = 0; iter_id < num_iterations; iter_id++) {
-		//     uint row_it = 0;
-		//     for (auto& hrs : hammerable_rows) {
-		//         for(uint vict : hrs.victim_ids) {
-		//             bitflips.clear();
-		//             collect_bitflips(bitflips, buf + iter_id*total_victim_rows*ROW_SIZE +
-		//             row_it*ROW_SIZE, hrs.data_pattern); row_it++;
-
-		//             num_bitflips.push_back(bitflips.size());
-
-		//             // if(bitflips.size() == 0)
-		//             //     std::cout << RED_TXT << "[Weak Row " << row_groups[i].row_id
-		//             << "] Did not find any bitflips." << NORMAL_TXT << std::endl;
-		//             // else
-		//             //     std::cout << GREEN_TXT << "[Weak Row " << row_groups[i].row_id
-		//             << "] Found " << bitflips.size() << " bitflip(s)." << NORMAL_TXT <<
-		//             std::endl;
-		//         }
-		//     }
-		//     assert(row_it == total_victim_rows);
-		// }
-
-		// delete[] buf;
 	}
 
 	return loc_bitflips;
@@ -2123,12 +1931,6 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
 		pick_weaks(f_row_groups, all_weaks, row_groups, num_row_groups);
-
-		// cout << "Num picked weak rows: " << row_groups.size() << std::endl;
-		// for(auto& wr : row_groups) {
-		//     std::cout << "B: " << wr.bank_id << ", R: " << wr.row_id << ", ret: " <<
-		//     wr.ret_ms << " ms" << std::endl;
-		// }
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
 		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
@@ -2463,7 +2265,7 @@ int main(int argc, char **argv)
 	}
 
 	if (row_layout.empty()) {
-		auto dot_pos = row_scout_file.find_last_of(".");
+		auto dot_pos = row_scout_file.find_last_of('.');
 		if (dot_pos != string::npos)
 			row_layout = row_scout_file.substr(dot_pos + 1);
 		else {
@@ -2602,11 +2404,6 @@ int main(int argc, char **argv)
 		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank, num_dummy_after_init,
 				      cur_rgs_and_dummies, dummy_ids_offset);
 	}
-
-	// std::cout << "Picked the following after init dummies: ";
-	// for (auto& dummy_id : after_init_dummies)
-	//     std::cout << dummy_id << " ";
-	// std::cout << std::endl;
 
 	// 4) Perform TRR analysis for each position of the weak rows among the dummy rows
 
@@ -2817,16 +2614,6 @@ int main(int argc, char **argv)
 						}
 						out_file << endl;
 						total_bitflips[row_it] += bitflips.size();
-
-						// if(bitflips.size() == 0)
-						//     std::cout << RED_TXT << "[Victim Row " <<
-						//     row_groups[i].row_id << "] Did not find any
-						//     bitflips." << NORMAL_TXT << std::endl;
-						// else
-						//     std::cout << GREEN_TXT << "[Victim Row " <<
-						//     row_groups[i].row_id << "] Found " <<
-						//     bitflips.size() << " bitflip(s)." <<
-						//     NORMAL_TXT << std::endl;
 					}
 
 					auto aggr_data_pattern = hr.data_pattern;
