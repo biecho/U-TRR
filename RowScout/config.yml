@@ -1,0 +1,28 @@
+row_scout_config:
+  # Location Settings
+  location:
+    # DRAM bank address
+    bank: 1
+    # Inclusive range of row addresses
+    range: [12, 15]
+
+  # Profiling Group Specifications
+  group:
+    # Row group layout, e.g., "R-R-R"
+    layout: "R-R-R"
+    # Number of row groups to find
+    amount: 1
+
+  # Retention Time Management
+  retention:
+    # Initial time in ms for profiling
+    initial: 100
+    # Increment in ms if criteria not met
+    increment: 50
+    # Cycles to validate row's time consistency
+    cycles: 1000
+
+  # Data Initialization Pattern
+  data:
+    # Initialization pattern: 0=random, 1=all ones, etc.
+    pattern: 0
