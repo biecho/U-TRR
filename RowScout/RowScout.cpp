@@ -143,31 +143,6 @@ typedef struct RowGroup {
 JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
-LogicalRowID to_logical_row_id(uint physical_row_id)
-{
-	switch (logical_physical_conversion_scheme) {
-	case LogPhysRowIDScheme::SEQUENTIAL: {
-		return physical_row_id;
-	}
-	case LogPhysRowIDScheme::SAMSUNG: {
-		if (physical_row_id & 0x8) {
-			PhysicalRowID log_row_id = physical_row_id & 0xFFFFFFF9;
-			log_row_id |= (~physical_row_id & 0x00000006); // set bit pos 3 and 2
-
-			return log_row_id;
-		} else {
-			return physical_row_id;
-		}
-	}
-	default: {
-		std::cerr << "ERROR: unimplemented physical to logical row id conversion scheme!"
-			  << std::endl;
-	}
-	}
-
-	return 0;
-}
-
 vector<RowGroup> filterCandidateRowGroups(const vector<RowGroup> &rowGroups,
 					  const vector<RowGroup> &candidateRowGroups)
 {

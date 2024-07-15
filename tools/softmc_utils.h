@@ -162,6 +162,31 @@ typedef enum LogPhysRowIDScheme {
 
 LogPhysRowIDScheme logical_physical_conversion_scheme = LogPhysRowIDScheme::SEQUENTIAL;
 
+LogicalRowID to_logical_row_id(uint physical_row_id)
+{
+	switch (logical_physical_conversion_scheme) {
+	case LogPhysRowIDScheme::SEQUENTIAL: {
+		return physical_row_id;
+	}
+	case LogPhysRowIDScheme::SAMSUNG: {
+		if (physical_row_id & 0x8) {
+			PhysicalRowID log_row_id = physical_row_id & 0xFFFFFFF9;
+			log_row_id |= (~physical_row_id & 0x00000006); // set bit pos 3 and 2
+
+			return log_row_id;
+		} else {
+			return physical_row_id;
+		}
+	}
+	default: {
+		std::cerr << "ERROR: unimplemented physical to logical row id conversion scheme!"
+			  << std::endl;
+	}
+	}
+
+	return 0;
+}
+
 PhysicalRowID to_physical_row_id(uint logical_row_id) {
     
     switch(logical_physical_conversion_scheme) {
