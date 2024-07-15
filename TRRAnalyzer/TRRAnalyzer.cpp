@@ -1900,7 +1900,7 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 
 void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGroup> &allRowGroups,
 					  vector<RowGroup> &row_groups, const uint num_row_groups,
-					  const bool cascaded_hammer, const std::string row_layout)
+					  const bool cascaded_hammer, const std::string& row_layout)
 {
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
