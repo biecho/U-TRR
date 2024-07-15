@@ -1074,9 +1074,10 @@ void issue_REFs(SoftMCPlatform &platform, const uint num_refs, Program *prog = n
 
 	int remaining_cycs = 0;
 	if (exec_prog_and_clean)
-		remaining_cycs = add_op_with_delay(*prog, SMC_PRE(0, 0, 1), 0, trp_cycles); // precharge
-											    // all
-											    // banks
+		remaining_cycs =
+			add_op_with_delay(*prog, SMC_PRE(0, 0, 1), 0, trp_cycles); // precharge
+										   // all
+										   // banks
 
 	if (remaining_cycs > 0) {
 		remaining_cycs = add_op_with_delay(*prog, SMC_NOP(), remaining_cycs, 0);
