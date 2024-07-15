@@ -567,7 +567,8 @@ void init_HRS_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	// initialize data of the two rows on the sides as well (if they are not out of bounds)
 	// we do this because these rows can be aggressor rows in the TRRAnalyzer experiments, and
 	// they may affect the retention of the first and last rows. Since we collect the first
-	// retention failures using a big batch of rows (where these side rows are likely to be initialized), we should do the same here
+	// retention failures using a big batch of rows (where these side rows are likely to be
+	// initialized), we should do the same here
 
 	// As a slight change to the note above, let's not initialize the aggressors on the sides
 	// (unless the rh_type forces that)
@@ -758,11 +759,6 @@ void init_HRS_data(SoftMCPlatform &platform, const std::vector<HammerableRowSet>
 	if (exec_prog_and_clean) {
 		prog->add_inst(SMC_END());
 		platform.execute(*prog);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Initializing Victims and Aggressors ---" << std::endl;
-		prog->pretty_print();
-#endif
-
 		delete prog;
 		delete reg_alloc;
 	}
@@ -959,10 +955,6 @@ bool is_hammerable(SoftMCPlatform &platform, const WeakRowSet &wrs, const std::s
 	p_testRH.add_inst(SMC_END());
 
 	platform.execute(p_testRH);
-#ifdef PRINT_SOFTMC_PROGS
-	std::cout << "--- SoftMCProg: Checking if the victims are hammerable ---" << std::endl;
-	p_testRH.pretty_print();
-#endif
 
 	/*********************************************/
 	/*** read PCIe data and check for bitflips ***/
@@ -1110,10 +1102,6 @@ void issue_REFs(SoftMCPlatform &platform, const uint num_refs, Program *prog = n
 
 		prog->add_inst(SMC_END());
 		platform.execute(*prog);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Issuing REFs ---" << std::endl;
-		prog->pretty_print();
-#endif
 
 		reg_alloc->free_SMC_REG(reg_bank_id);
 		reg_alloc->free_SMC_REG(reg_row_id);
@@ -1212,10 +1200,6 @@ void hammer_dummies(SoftMCPlatform &platform, const uint bank_id, const vector<u
 
 		prog->add_inst(SMC_END());
 		platform.execute(*prog);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Hammering Dummy Aggressors ---" << std::endl;
-		prog->pretty_print();
-#endif
 
 		reg_alloc->free_SMC_REG(reg_col_id);
 
@@ -1330,8 +1314,7 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 	if (!hammer_dummies_independently)
 		assert(new_hammers_per_ref.size() == all_rows_to_hammer.size());
 
-	for (uint i = 0; i < new_hammers_per_ref.size(); i++) {
-		uint hammer_count = new_hammers_per_ref[i];
+	for (unsigned int hammer_count : new_hammers_per_ref) {
 		total_hammers_per_ref += hammer_count;
 	}
 
@@ -1444,10 +1427,6 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 	if (exec_prog_and_clean) {
 		prog->add_inst(SMC_END());
 		platform.execute(*prog);
-#ifdef PRINT_SOFTMC_PROGS
-		std::cout << "--- SoftMCProg: Hammering the Aggressor Rows ---" << std::endl;
-		prog->pretty_print();
-#endif
 	}
 
 	reg_alloc->free_SMC_REG(reg_cur_its);
@@ -1574,19 +1553,12 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 					   &single_prog_reg_alloc);
 		}
 
-		// auto t_end_issue_refs = chrono::high_resolution_clock::now();
-		// chrono::duration<double, milli> ref_issue_duration(t_end_issue_refs -
-		// t_start_issue_refs); std::cout << YELLOW_TXT << "Completed issuing 8192 REF
-		// commands in (ms): " << ref_issue_duration.count() << NORMAL_TXT << std::endl;
-
 		t_end_issue_prog = chrono::high_resolution_clock::now();
 	}
 
 	// 2) wait until half of the target retention time, i.e., hammering_start_time =
 	// (ret_ms*H_MODIFIER - (num_rounds*refresh_cycle_time))/2
-	/* SMC_WAIT() allows sleeping up to only ~6 seconds
-	   need to use the system timer like in the RetentionProfiler to sleep longer */
-
+	// SMC_WAIT() allows sleeping up to only ~6 seconds need to use the system timer like in the RetentionProfiler to sleep longer
 	// calculating the time for activating all aggressor rows once
 
 	uint num_all_aggrs = 0;
@@ -1622,17 +1594,10 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 		std::cout << YELLOW_TXT
 			  << "Weak row retention time (ms): " << hammerable_rows[0].ret_ms
 			  << NORMAL_TXT << std::endl;
-		// std::cout << YELLOW_TXT << "pre_ref_delay (cycles): " << pre_ref_delay <<
-		// NORMAL_TXT << std::endl; std::cout << YELLOW_TXT << "total_hammer_cycles
-		// (cycles): " << total_hammer_cycles << NORMAL_TXT << std::endl;
+
 		std::cout << YELLOW_TXT
 			  << "Time to complete hammering phase (ms): " << total_hammer_ms
 			  << NORMAL_TXT << std::endl;
-		// std::cout << YELLOW_TXT << "TRR_RETTIME_MULT: " << TRR_RETTIME_MULT << NORMAL_TXT
-		// << std::endl; std::cout << YELLOW_TXT << "prog_issue_duration (ms): " <<
-		// prog_issue_duration.count() << NORMAL_TXT << std::endl; std::cout << YELLOW_TXT
-		// << "Waiting for (ms): " << wait_interval_ms - prog_issue_duration.count() <<
-		// NORMAL_TXT << std::endl;
 	}
 
 	// hammers the rows here as well if hammers_before_wait contains non zero element
@@ -1721,9 +1686,6 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 		return {};
 	}
 
-	// std::cout << YELLOW_TXT << "(2nd Wait) Waiting for (ms): " <<
-	// hammerable_rows[0].ret_ms*TRR_RETTIME_MULT - dur_from_start.count() << NORMAL_TXT <<
-	// std::endl;
 	if (!use_single_softmc_prog)
 		waitMS(hammerable_rows[0].ret_ms * TRR_RETTIME_MULT - dur_from_start.count());
 	else
