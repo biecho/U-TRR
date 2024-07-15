@@ -1044,8 +1044,8 @@ int main(int argc, char **argv)
 	}
 
 	int retention_ms = starting_ret_time;
-	uint64_t buf_size = 0;
 	char *buf = nullptr;
+	uint64_t buf_size = 0;
 	vector<RowGroup> candidateRowGroups;
 	vector<RowGroup> rowGroups;
 
@@ -1061,10 +1061,10 @@ int main(int argc, char **argv)
 
 		// check the size of the buffer to read the data to and increase its size if needed
 		if (buf_size < row_batch_size * ROW_SIZE) {
-			delete[] buf;
-
-			buf = new char[row_batch_size * ROW_SIZE];
 			buf_size = row_batch_size * ROW_SIZE;
+
+			delete[] buf;
+			buf = new char[buf_size];
 		}
 
 		// apply the retention time to the corresponding row region
