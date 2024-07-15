@@ -13,6 +13,7 @@
 #include <cassert>
 #include <bitset>
 #include <chrono>
+#include <stdexcept>
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -1801,7 +1802,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 
 // Finds and returns a subset of the retention-profiled rows in wrs that match the provided
 // row_layout
-RowGroup adjust_wrs(const RowGroup &wrs, const std::string &row_layout)
+RowGroup adjustRowGroup(const RowGroup &wrs, const std::string &row_layout)
 {
 	// calculate row_layout distance vector
 	std::vector<uint> wrs_type_dists;
@@ -1860,7 +1861,7 @@ RowGroup adjust_wrs(const RowGroup &wrs, const std::string &row_layout)
 	}
 
 	assert(!wrs_dists.empty() || match); // does includes() return true when wrs_type_dists
-						// is empty?
+					     // is empty?
 
 	if (match) { // we have a match
 		// build a new row id vector that includes only the matching rows
@@ -1919,28 +1920,31 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGr
 			std::cout << GREEN_TXT << "Candidate victim row " << it->rows_as_str()
 				  << " is hammerable" << NORMAL_TXT << std::endl;
 
-			*it = adjust_wrs(*it, row_layout);
+			*it = adjustRowGroup(*it, row_layout);
 		}
 	}
 }
 
-void get_row_groups_by_index(vector<RowGroup> &all_row_groups, vector<RowGroup> &row_groups,
-			     const vector<uint> &ind_weak_rows, const std::string &row_layout)
+void get_row_groups_by_index(const vector<RowGroup> &all_row_groups, vector<RowGroup> &row_groups,
+			     const vector<uint> &indices, const std::string &row_layout)
 {
-	for (uint ind : ind_weak_rows) {
-		if (all_row_groups.size() <= ind) {
-			std::cerr << RED_TXT
-				  << "ERROR: The weaks rows file does not contain a sufficient "
-				     "number of hammerable weak rows"
-				  << NORMAL_TXT << std::endl;
-			std::cerr << RED_TXT << "Needed the weak row at index: " << ind
-				  << " but the file contains " << all_row_groups.size()
-				  << " row_groups" << NORMAL_TXT << std::endl;
-			exit(-1);
+	// Check all indices are valid before processing
+	for (auto index : indices) {
+		if (index >= all_row_groups.size()) {
+			throw std::out_of_range("ERROR: Index out of range. Requested index " +
+						std::to_string(index) +
+						" exceeds available row groups count of " +
+						std::to_string(all_row_groups.size()) +
+						". Please ensure the requested indices are within "
+						"the valid range.");
 		}
+	}
 
-		RowGroup adjusted_wrs = adjust_wrs(all_row_groups[ind], row_layout);
-		row_groups.push_back(adjusted_wrs);
+	// If all indices are valid, proceed to adjust and copy the row groups
+	for (auto index : indices) {
+		auto rowGroup = all_row_groups[index];
+		auto adjustedRowGroup = adjustRowGroup(rowGroup, row_layout);
+		row_groups.push_back(adjustedRowGroup);
 	}
 }
 
