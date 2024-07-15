@@ -564,16 +564,14 @@ void init_HRS_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 		   const bool init_aggrs_first, const bool ignore_aggrs,
 		   const bool init_only_victims)
 {
-	// // initialize data of the two rows on the sides as well (if they are not out of bounds)
-	// // we do this because these rows can be aggressor rows in the TRRAnalyzer experiments and
-	// // they may affect the retention of the first and last rows. Since we collect the first
-	// retention failures
-	// // using a big batch of rows (where these side rows are likely to be initialized), we
-	// should do the same here
+	// initialize data of the two rows on the sides as well (if they are not out of bounds)
+	// we do this because these rows can be aggressor rows in the TRRAnalyzer experiments, and
+	// they may affect the retention of the first and last rows. Since we collect the first
+	// retention failures using a big batch of rows (where these side rows are likely to be initialized), we should do the same here
 
-	// // As a slight change to the note above, let's not initialize the aggressors on the sides
+	// As a slight change to the note above, let's not initialize the aggressors on the sides
 	// (unless the rh_type forces that)
-	// // to make it easier to find which ACTs are sampling in Hynix modules
+	// to make it easier to find which ACTs are sampling in Hynix modules
 
 	// init_data_row_range(prog, reg_alloc, reg_bank_addr, reg_num_cols, first_row_id,
 	// last_row_id, hr.data_pattern);
