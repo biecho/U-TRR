@@ -1,0 +1,97 @@
+trr_analyzer_config:
+  # Output file configuration
+  output:
+    # Specifies the path for the output file
+    file: "default_output_filename"
+    # If true, appends the output to the file; otherwise, clears the file before writing
+    append: false
+    # If true, writes bit flip locations to the output file
+    location_out: false
+
+  # Row Scout file details
+  row_scout_file:
+    # Path to a file containing list of row groups and their retention times
+    path: "path_to_row_scout_file"
+    # Layout of aggressor and victim rows within a row group
+    row_layout: "RAR"
+    # Number of row groups to work with
+    num_row_groups: 1
+    # Optional specific indices of row groups to use from the row scout file
+    row_group_indices: []
+
+  # Experiment details
+  experiment:
+    # Number of hammer + refresh rounds per experiment
+    num_rounds: 1
+    # Number of times the complete experiment cycle is performed
+    num_iterations: 1
+    # Number of REF commands to issue at the end of a round
+    refs_per_round: 1
+    # Number of REF commands after initializing data in DRAM rows
+    refs_after_init: 0
+
+  # Aggressor row configurations
+  aggressor_rows:
+    # Specifies the number of hammers for each aggressor per round
+    hammers_per_round: []
+    # If true, hammers rows in a non-interleaved manner
+    cascaded_hammer: false
+    # Hammer count right after data initialization
+    hammers_before_wait: []
+    # If true, applies hammers individually to each row group
+    hammer_rgs_individually: false
+    # If true, does not hammer the aggressor rows
+    skip_hammering: false
+    # If true, initializes aggressor rows first with a data pattern
+    init_aggrs_first: false
+    # If true, only initializes and hammers aggressor rows during the first iteration
+    first_it_aggr_init_and_hammer: false
+    # If true, only initializes victim rows at the start of an iteration
+    init_only_victims: false
+
+  # Timing and hammering details
+  timing:
+    # Additional cycles to wait in row active state while hammering
+    hammer_duration: 0
+    # Time interval between two consecutive row activations
+    hammer_cycle_time: 0
+
+  # Dummy row configurations
+  dummy_rows:
+    # Number of dummy aggressors to hammer each round
+    num_dummy_aggrs: 0
+    # Bank address from which to select dummy rows
+    dummy_aggrs_bank: 0
+    # Specific dummy row addresses to hammer each round
+    dummy_aggr_ids: []
+    # Number of times each dummy row is hammered per round
+    dummy_hammers_per_round: 0
+    # Offset value for every dummy row address
+    dummy_ids_offset: 0
+    # If true, hammers dummy rows before real aggressor rows
+    hammer_dummies_first: false
+    # If true, hammers dummy rows independently after aggressors
+    hammer_dummies_independently: false
+    # Number of dummy rows hammered right after initializing the rows
+    num_dummy_after_init: 0
+    # If true, hammers dummy rows only during the first iteration
+    first_it_dummy_hammer: false
+
+  # Miscellaneous settings
+  miscellaneous:
+    # Delay ratio before performing hammers before waiting
+    init_to_hammerbw_delay: 0.0
+    # Number of times to hammer a row from bank 0 after main hammering
+    num_bank0_hammers: 0
+    # Times to hammer a row from bank 0 before data initialization
+    num_pre_init_bank0_hammers: 0
+    # Number of NOPs to insert before data initialization
+    pre_init_nops: 0
+    # Cycles to wait before performing REFs specified by refs_per_round
+    pre_ref_delay: 0
+    # If true, finds hammerable row groups but does not run analysis
+    only_pick_rgs: false
+    # Mapping scheme for logical to physical row IDs conversion
+    log_phys_scheme: 0
+    # If true, runs the entire experiment as a single SoftMC program
+    use_single_softmc_prog: false
