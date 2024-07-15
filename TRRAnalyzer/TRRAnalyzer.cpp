@@ -444,8 +444,8 @@ void parse_row_groups(boost::filesystem::ifstream &f_row_groups, vector<WeakRowS
 	}
 }
 
-void pick_weaks(boost::filesystem::ifstream &f_row_groups, vector<WeakRowSet> &all_weak_rows,
-		vector<WeakRowSet> &picked_weak_rows, const uint num_row_groups)
+void pick_weaks(vector<WeakRowSet> &all_weak_rows, vector<WeakRowSet> &picked_weak_rows,
+		const uint num_row_groups)
 {
 	for (uint i = picked_weak_rows.size(); i < num_row_groups; i++) {
 		auto it = all_weak_rows.begin();
@@ -1575,8 +1575,9 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 
 	// 2) wait until half of the target retention time, i.e., hammering_start_time =
 	// (ret_ms*H_MODIFIER - (num_rounds*refresh_cycle_time))/2
-	// SMC_WAIT() allows sleeping up to only ~6 seconds need to use the system timer like in the RetentionProfiler to sleep longer
-	// calculating the time for activating all aggressor rows once
+	// SMC_WAIT() allows sleeping up to only ~6 seconds need to use the system timer like in the
+	// RetentionProfiler to sleep longer calculating the time for activating all aggressor rows
+	// once
 
 	uint num_all_aggrs = 0;
 	for (auto &hr : hammerable_rows) {
@@ -1897,16 +1898,14 @@ WeakRowSet adjust_wrs(const WeakRowSet &wrs, const std::string &row_layout)
 }
 
 void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
-					  boost::filesystem::ifstream &f_row_groups,
+					  vector<WeakRowSet> &allRowGroups,
 					  vector<WeakRowSet> &row_groups, const uint num_row_groups,
 					  const bool cascaded_hammer, const std::string row_layout)
 {
-	auto all_weaks = parse_all_row_groups(f_row_groups);
-
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
-		pick_weaks(f_row_groups, all_weaks, row_groups, num_row_groups);
+		pick_weaks(allRowGroups, row_groups, num_row_groups);
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
 		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
@@ -1926,25 +1925,22 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
 	}
 }
 
-void get_row_groups_by_index(boost::filesystem::ifstream &f_row_groups,
-			     vector<WeakRowSet> &row_groups, const vector<uint> &ind_weak_rows,
-			     const std::string &row_layout)
+void get_row_groups_by_index(vector<WeakRowSet> &all_row_groups, vector<WeakRowSet> &row_groups,
+			     const vector<uint> &ind_weak_rows, const std::string &row_layout)
 {
-	auto all_weaks = parse_all_row_groups(f_row_groups);
-
 	for (uint ind : ind_weak_rows) {
-		if (all_weaks.size() <= ind) {
+		if (all_row_groups.size() <= ind) {
 			std::cerr << RED_TXT
 				  << "ERROR: The weaks rows file does not contain a sufficient "
 				     "number of hammerable weak rows"
 				  << NORMAL_TXT << std::endl;
 			std::cerr << RED_TXT << "Needed the weak row at index: " << ind
-				  << " but the file contains " << all_weaks.size() << " row_groups"
-				  << NORMAL_TXT << std::endl;
+				  << " but the file contains " << all_row_groups.size()
+				  << " row_groups" << NORMAL_TXT << std::endl;
 			exit(-1);
 		}
 
-		WeakRowSet adjusted_wrs = adjust_wrs(all_weaks[ind], row_layout);
+		WeakRowSet adjusted_wrs = adjust_wrs(all_row_groups[ind], row_layout);
 		row_groups.push_back(adjusted_wrs);
 	}
 }
@@ -2317,10 +2313,11 @@ int main(int argc, char **argv)
 	}
 	f_row_groups.open(p_row_scout_file);
 
+	auto all_row_groups = parse_all_row_groups(f_row_groups);
 	if (!row_group_indices.empty()) {
-		get_row_groups_by_index(f_row_groups, row_groups, row_group_indices, row_layout);
+		get_row_groups_by_index(all_row_groups, row_groups, row_group_indices, row_layout);
 	} else if (num_row_groups > 0) {
-		pick_hammerable_row_groups_from_file(platform, f_row_groups, row_groups,
+		pick_hammerable_row_groups_from_file(platform, all_row_groups, row_groups,
 						     num_row_groups, cascaded_hammer, row_layout);
 	}
 
