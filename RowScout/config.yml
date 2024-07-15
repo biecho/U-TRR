@@ -17,14 +17,19 @@ row_scout_config:
 
   # Retention Time Management
   retention:
-    # Initial retention time in milliseconds to start profiling.
-    # It's the base time to test if rows can retain data without errors.
-    initial: 100
-    # Increment in milliseconds to be added to the retention time if initial profiling does not meet
-    # the criteria. It helps in adjusting the profiling accuracy dynamically.
-    increment: 50
-    # Number of cycles to validate each row's retention time to ensure it's consistent and reliable.
-    cycles: 1000
+    # Initial retention time in milliseconds for the profiling process. This is the starting point for testing
+    # DRAM rows to determine if they can retain data correctly over this duration without any errors.
+    initial_ms: 100
+
+    # Increment in milliseconds to adjust the retention time when the initially profiled rows do not meet
+    # the specified criteria for retention consistency.
+    increment_ms: 50
+
+    # Number of validation cycles to perform for each row in a candidate row group to ensure that the retention
+    # time is consistently reliable across multiple tests. This process is critical to counteract the effects of
+    # Variable Retention Time (VRT), a phenomenon where the retention time of DRAM cells changes unpredictably
+    # over time.
+    validation_cycles_count: 1000
 
   # Data Initialization Pattern
   data:
