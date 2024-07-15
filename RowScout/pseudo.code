@@ -1,0 +1,30 @@
+Initialize:
+  Set initial_retention_time T = 100 ms
+
+Start:
+  While not enough row groups found
+    1. Scan DRAM Bank:
+       For each row in the specified range:
+         Check if row retains data correctly over the interval T
+         If failure detected, collect row address
+
+    2. Form Candidate Row Groups:
+       Combine collected addresses into groups matching the specified layout
+       If the number of formed candidate groups < required groups:
+         Increase T by retention_time_increment (e.g., 50 ms)
+         Continue from step 1
+
+    3. Validate Retention Time Consistency:
+       For each row in each candidate group:
+         Test retention time consistency 1000 times
+       If not all groups pass the consistency test:
+         Increase T by retention_time_increment
+         Continue from step 1
+
+    4. Finalize:
+       If required number of consistent row groups is found:
+         Provide list of profiled row groups
+         Exit while loop
+
+End:
+  Return list of profiled row groups for use in TRR-A
