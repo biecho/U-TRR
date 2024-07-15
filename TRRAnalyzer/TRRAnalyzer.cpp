@@ -444,7 +444,7 @@ void pick_weaks(boost::filesystem::ifstream &f_row_groups, vector<WeakRowSet> &a
 			exit(-1);
 		}
 
-		if (picked_weak_rows.size() > 0) {
+		if (!picked_weak_rows.empty()) {
 			// remove picked rows that have different retention times
 			for (auto it_picked = picked_weak_rows.begin();
 			     it_picked != picked_weak_rows.end(); it_picked++) {
