@@ -413,35 +413,35 @@ bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
 	return true;
 }
 
-std::vector<RowGroup> parse_all_row_groups(boost::filesystem::ifstream &f_row_groups)
+std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 {
-	std::vector<RowGroup> row_groups;
-	std::string s_weak;
-
-	uint i = 0;
-	while (getNextJSONObj(f_row_groups, s_weak)) {
-		JS::ParseContext context(s_weak);
-		RowGroup wr;
-		context.parseTo(wr);
-		wr.index_in_file = i++;
-		row_groups.push_back(wr);
+	boost::filesystem::path rowScoutFilePath(rowScoutFile);
+	if (!boost::filesystem::exists(rowScoutFilePath)) {
+		std::cerr << RED_TXT << "ERROR: RowScout file not found: " << rowScoutFile
+			  << NORMAL_TXT << std::endl;
+		exit(-1);
 	}
 
-	return row_groups;
-}
+	boost::filesystem::ifstream rowScoutFileStream;
+	rowScoutFileStream.open(rowScoutFilePath);
 
-void parse_row_groups(boost::filesystem::ifstream &f_row_groups, vector<RowGroup> &row_groups)
-{
-	string s_weak;
+	vector<RowGroup> rowGroups;
+	string rowGroupJson;
 
 	uint i = 0;
-	while (getNextJSONObj(f_row_groups, s_weak)) {
-		JS::ParseContext context(s_weak);
-		RowGroup wr;
-		context.parseTo(wr);
-		wr.index_in_file = i++;
-		row_groups.push_back(wr);
+	while (getNextJSONObj(rowScoutFileStream, rowGroupJson)) {
+		JS::ParseContext context(rowGroupJson);
+
+		RowGroup rowGroup;
+		context.parseTo(rowGroup);
+
+		rowGroup.index_in_file = i++;
+		rowGroups.push_back(rowGroup);
 	}
+
+	rowScoutFileStream.close();
+
+	return rowGroups;
 }
 
 void pick_weaks(vector<RowGroup> &all_weak_rows, vector<RowGroup> &picked_weak_rows,
@@ -2301,26 +2301,18 @@ int main(int argc, char **argv)
 
 	vector<uint> picked_weak_indices;
 	picked_weak_indices.reserve(num_row_groups);
-	boost::filesystem::ifstream f_row_groups;
-	boost::filesystem::path p_row_scout_file(row_scout_file);
-	if (!boost::filesystem::exists(p_row_scout_file)) {
-		std::cerr << RED_TXT << "ERROR: RowScout file not found: " << row_scout_file
-			  << NORMAL_TXT << std::endl;
-		exit(-1);
-	}
-	f_row_groups.open(p_row_scout_file);
+
+	auto allRowGroups = parseAllRowGroups(row_scout_file);
 
 	vector<RowGroup> row_groups;
 	row_groups.reserve(num_row_groups);
-	auto all_row_groups = parse_all_row_groups(f_row_groups);
 	if (!row_group_indices.empty()) {
-		get_row_groups_by_index(all_row_groups, row_groups, row_group_indices, row_layout);
+		get_row_groups_by_index(allRowGroups, row_groups, row_group_indices, row_layout);
 	} else if (num_row_groups > 0) {
-		pick_hammerable_row_groups_from_file(platform, all_row_groups, row_groups,
+		pick_hammerable_row_groups_from_file(platform, allRowGroups, row_groups,
 						     num_row_groups, cascaded_hammer, row_layout);
 	}
 
-	f_row_groups.close();
 
 	if (only_pick_rgs) { // write the picked weak row indices to the output file and exit
 		for (auto &rg : row_groups)
