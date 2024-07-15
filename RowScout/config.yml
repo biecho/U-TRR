@@ -1,28 +1,43 @@
 row_scout_config:
   # Location Settings
   location:
-    # DRAM bank address
+    # The DRAM bank to be profiled.
     bank: 1
-    # Inclusive range of row addresses
+    # Inclusive range of DRAM row addresses to be profiled.
     range: [12, 15]
 
   # Profiling Group Specifications
   group:
-    # Row group layout, e.g., "R-R-R"
+    # Layout of rows in a row group indicating the distance between rows. For instance, "R-R-R"
+    # suggests three rows where each 'R' represents a retention-profiled row and '-' indicates a
+    # distance of one DRAM row.
     layout: "R-R-R"
-    # Number of row groups to find
+    # Specifies the number of row groups to find.
     amount: 1
 
   # Retention Time Management
   retention:
-    # Initial time in ms for profiling
+    # Initial retention time in milliseconds to start profiling.
+    # It's the base time to test if rows can retain data without errors.
     initial: 100
-    # Increment in ms if criteria not met
+    # Increment in milliseconds to be added to the retention time if initial profiling does not meet
+    # the criteria. It helps in adjusting the profiling accuracy dynamically.
     increment: 50
-    # Cycles to validate row's time consistency
+    # Number of cycles to validate each row's retention time to ensure it's consistent and reliable.
     cycles: 1000
 
   # Data Initialization Pattern
   data:
-    # Initialization pattern: 0=random, 1=all ones, etc.
+    # Specifies the pattern used to initialize data in DRAM rows for profiling. Options are:
+    # 0 - random, 1 - all ones, 2 - all zeros, 3 - colstripe (0101), 4 - inverse colstripe (1010),
+    # 5 - checkered (0101, 1010), 6 - inverse checkered (1010, 0101). Each pattern serves to test
+    # different data retention scenarios.
     pattern: 0
+
+  # Mapping Scheme for DRAM rows
+  mapping_scheme:
+    # Defines how logical row IDs are converted to physical row IDs and vice versa.
+    # 0 - Sequential mapping (default), 1 - Samsung chip typical mapping scheme.
+    # This setting is crucial for systems where the physical and logical mapping of memory rows
+    # affects performance and profiling accuracy.
+    scheme: 0
