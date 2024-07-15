@@ -1800,9 +1800,9 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 	return loc_bitflips;
 }
 
-// Finds and returns a subset of the retention-profiled rows in wrs that match the provided
+// Finds and returns a subset of the retention-profiled rows in rowGroup that match the provided
 // row_layout
-RowGroup adjustRowGroup(const RowGroup &wrs, const std::string &row_layout)
+RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 {
 	// calculate row_layout distance vector
 	std::vector<uint> wrs_type_dists;
@@ -1828,13 +1828,13 @@ RowGroup adjustRowGroup(const RowGroup &wrs, const std::string &row_layout)
 	assert(first_r_ind != -1 &&
 	       "ERROR: There must be at least one R or U in the rowlayout (i.e., row_layout)");
 
-	RowGroup new_wrs = wrs;
+	RowGroup new_wrs = rowGroup;
 	bool match = false;
 
 	std::vector<uint> wrs_dists;
 	wrs_dists.reserve(new_wrs.row_group.size());
 	while (true) {
-		// finding the row distance between the rows in wrs
+		// finding the row distance between the rows in rowGroup
 		wrs_dists.clear();
 
 		uint first_victim_id = to_physical_row_id(new_wrs.row_group[0].row_id);
