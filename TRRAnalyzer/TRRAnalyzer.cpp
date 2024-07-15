@@ -413,7 +413,24 @@ bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
 	return true;
 }
 
-void parse_all_weaks(boost::filesystem::ifstream &f_row_groups, vector<WeakRowSet> &row_groups)
+std::vector<WeakRowSet> parse_all_row_groups(boost::filesystem::ifstream &f_row_groups)
+{
+	std::vector<WeakRowSet> row_groups;
+	std::string s_weak;
+
+	uint i = 0;
+	while (getNextJSONObj(f_row_groups, s_weak)) {
+		JS::ParseContext context(s_weak);
+		WeakRowSet wr;
+		context.parseTo(wr);
+		wr.index_in_file = i++;
+		row_groups.push_back(wr);
+	}
+
+	return row_groups;
+}
+
+void parse_row_groups(boost::filesystem::ifstream &f_row_groups, vector<WeakRowSet> &row_groups)
 {
 	string s_weak;
 
@@ -1884,9 +1901,7 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
 					  vector<WeakRowSet> &row_groups, const uint num_row_groups,
 					  const bool cascaded_hammer, const std::string row_layout)
 {
-	vector<WeakRowSet> all_weaks;
-	all_weaks.reserve(100);
-	parse_all_weaks(f_row_groups, all_weaks);
+	auto all_weaks = parse_all_row_groups(f_row_groups);
 
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
@@ -1915,9 +1930,7 @@ void get_row_groups_by_index(boost::filesystem::ifstream &f_row_groups,
 			     vector<WeakRowSet> &row_groups, const vector<uint> &ind_weak_rows,
 			     const std::string &row_layout)
 {
-	vector<WeakRowSet> all_weaks;
-	all_weaks.reserve(100);
-	parse_all_weaks(f_row_groups, all_weaks);
+	auto all_weaks = parse_all_row_groups(f_row_groups);
 
 	for (uint ind : ind_weak_rows) {
 		if (all_weaks.size() <= ind) {
