@@ -127,7 +127,7 @@ typedef struct RowGroup {
 	{
 	}
 	RowGroup(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
-		   uint _data_pattern_type, uint _rowdata_ind)
+		 uint _data_pattern_type, uint _rowdata_ind)
 		: row_group(_weak_rows)
 		, bank_id(_bank_id)
 		, ret_ms(_ret_ms)
@@ -1897,8 +1897,7 @@ RowGroup adjust_wrs(const RowGroup &wrs, const std::string &row_layout)
 	return new_wrs;
 }
 
-void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform,
-					  vector<RowGroup> &allRowGroups,
+void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGroup> &allRowGroups,
 					  vector<RowGroup> &row_groups, const uint num_row_groups,
 					  const bool cascaded_hammer, const std::string row_layout)
 {
@@ -2312,7 +2311,6 @@ int main(int argc, char **argv)
 		pick_hammerable_row_groups_from_file(platform, allRowGroups, row_groups,
 						     num_row_groups, cascaded_hammer, row_layout);
 	}
-
 
 	if (only_pick_rgs) { // write the picked weak row indices to the output file and exit
 		for (auto &rg : row_groups)
