@@ -1942,7 +1942,7 @@ void get_row_groups_by_index(const vector<RowGroup> &all_row_groups, vector<RowG
 
 	// If all indices are valid, proceed to adjust and copy the row groups
 	for (auto index : indices) {
-		auto rowGroup = all_row_groups[index];
+		const auto& rowGroup = all_row_groups[index];
 		auto adjustedRowGroup = adjustRowGroup(rowGroup, row_layout);
 		row_groups.push_back(adjustedRowGroup);
 	}
