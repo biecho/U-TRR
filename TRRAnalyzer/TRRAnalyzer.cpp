@@ -445,38 +445,41 @@ std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 	return rowGroups;
 }
 
-void pick_weaks(vector<RowGroup> &all_weak_rows, vector<RowGroup> &picked_weak_rows,
-		const uint num_row_groups)
+std::vector<RowGroup> pickRandomRowGroups(vector<RowGroup> &rowGroups, const uint numRowGroups)
 {
-	for (uint i = picked_weak_rows.size(); i < num_row_groups; i++) {
-		auto it = all_weak_rows.begin();
+	std::vector<RowGroup> pickedRowGroups;
 
-		if (it == all_weak_rows.end()) {
+	for (uint i = 0; i < numRowGroups; i++) {
+		auto it = rowGroups.begin();
+
+		if (it == rowGroups.end()) {
 			std::cerr << RED_TXT
 				  << "ERROR: The weaks rows file does not contain a sufficient "
 				     "number of hammerable weak rows"
 				  << NORMAL_TXT << std::endl;
-			std::cerr << RED_TXT << "Needed: " << num_row_groups
-				  << ", found: " << picked_weak_rows.size() << NORMAL_TXT
+			std::cerr << RED_TXT << "Needed: " << numRowGroups
+				  << ", found: " << pickedRowGroups.size() << NORMAL_TXT
 				  << std::endl;
 			exit(-1);
 		}
 
-		if (!picked_weak_rows.empty()) {
+		if (!pickedRowGroups.empty()) {
 			// remove picked rows that have different retention times
-			for (auto it_picked = picked_weak_rows.begin();
-			     it_picked != picked_weak_rows.end(); it_picked++) {
-				if (std::abs((int)it_picked->ret_ms - (int)it->ret_ms) >
+			for (auto rowGroup = pickedRowGroups.begin();
+			     rowGroup != pickedRowGroups.end(); rowGroup++) {
+				if (std::abs((int)rowGroup->ret_ms - (int)it->ret_ms) >
 				    TRR_ALLOWED_RET_TIME_DIFF) {
-					picked_weak_rows.erase(it_picked--);
+					pickedRowGroups.erase(rowGroup--);
 					i--;
 				}
 			}
 		}
 
-		picked_weak_rows.push_back(*it);
-		all_weak_rows.erase(it);
+		pickedRowGroups.push_back(*it);
+		rowGroups.erase(it);
 	}
+
+	return pickedRowGroups;
 }
 
 void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
@@ -1905,7 +1908,7 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGr
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
-		pick_weaks(allRowGroups, row_groups, num_row_groups);
+		row_groups = pickRandomRowGroups(allRowGroups, num_row_groups);
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
 		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
