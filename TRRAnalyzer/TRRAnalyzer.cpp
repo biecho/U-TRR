@@ -2456,14 +2456,14 @@ int main(int argc, char **argv)
 
 	notify(vm);
 
-	if (row_group_indices.size() > 0)
+	if (!row_group_indices.empty())
 		num_row_groups = row_group_indices.size();
 
-	if (arg_dummy_aggr_ids.size() > 0) {
+	if (!arg_dummy_aggr_ids.empty()) {
 		num_dummy_aggressors = arg_dummy_aggr_ids.size();
 	}
 
-	if (row_layout == "") {
+	if (row_layout.empty()) {
 		auto dot_pos = row_scout_file.find_last_of(".");
 		if (dot_pos != string::npos)
 			row_layout = row_scout_file.substr(dot_pos + 1);
@@ -2483,7 +2483,7 @@ int main(int argc, char **argv)
 		exit(-3);
 	}
 
-	if (out_filename != "") {
+	if (!out_filename.empty()) {
 		path out_dir(out_filename);
 		out_dir = out_dir.parent_path();
 		if (!(exists(out_dir))) {
@@ -2496,7 +2496,7 @@ int main(int argc, char **argv)
 	}
 
 	boost::filesystem::ofstream out_file;
-	if (out_filename != "") {
+	if (!out_filename.empty()) {
 		if (append_output)
 			out_file.open(out_filename, boost::filesystem::ofstream::app);
 		else
@@ -2525,7 +2525,7 @@ int main(int argc, char **argv)
 	bitset<512> bitset_int_mask(0xFFFFFFFF);
 
 	auto t_prog_started = chrono::high_resolution_clock::now();
-	chrono::duration<double> elapsed;
+	chrono::duration<double> elapsed{};
 	bool check_time;
 
 	vector<WeakRowSet> row_groups;
@@ -2542,7 +2542,7 @@ int main(int argc, char **argv)
 	}
 	f_row_groups.open(p_row_scout_file);
 
-	if (row_group_indices.size() > 0) {
+	if (!row_group_indices.empty()) {
 		get_row_groups_by_index(f_row_groups, row_groups, row_group_indices, row_layout);
 	} else if (num_row_groups > 0) {
 		pick_hammerable_row_groups_from_file(platform, f_row_groups, row_groups,
@@ -2562,13 +2562,13 @@ int main(int argc, char **argv)
 		dummy_aggrs_bank = row_groups[0].bank_id;
 
 	// 3) Pick dummy aggressors rows
-	if ((num_dummy_aggressors > 0) && arg_dummy_aggr_ids.size() == 0) {
+	if ((num_dummy_aggressors > 0) && arg_dummy_aggr_ids.empty()) {
 		uint max_dummy_aggrs = num_dummy_aggressors;
 		arg_dummy_aggr_ids.reserve(max_dummy_aggrs);
 		pick_dummy_aggressors(arg_dummy_aggr_ids, dummy_aggrs_bank, max_dummy_aggrs,
 				      row_groups, dummy_ids_offset);
 
-	} else if (arg_dummy_aggr_ids.size() > 0 &&
+	} else if (!arg_dummy_aggr_ids.empty() &&
 		   (dummy_aggrs_bank == row_groups[0].bank_id)) { // check whether the user provided
 								  // dummy row ids collide with the
 								  // aggressor row ids
@@ -2597,7 +2597,7 @@ int main(int argc, char **argv)
 		// this is to pick different dummy than those we picked to hammer while hammering
 		// the actual aggressor rows
 		for (uint dummy_row_id : arg_dummy_aggr_ids)
-			cur_dummies.row_group.push_back(WeakRow(dummy_row_id, std::vector<uint>()));
+			cur_dummies.row_group.emplace_back(dummy_row_id, std::vector<uint>());
 		cur_rgs_and_dummies.push_back(cur_dummies);
 
 		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank, num_dummy_after_init,
@@ -2631,7 +2631,7 @@ int main(int argc, char **argv)
 				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids,
 				       dummy_hammers_per_round, hammer_dummies_first);
 
-	if (hammers_before_wait.size() > 0)
+	if (!hammers_before_wait.empty())
 		adjust_hammers_per_ref(hammers_before_wait, hrs[0].aggr_ids.size(),
 				       hammer_rgs_individually, skip_hammering_aggr,
 				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids, 0,
@@ -2680,8 +2680,8 @@ int main(int argc, char **argv)
 
 	if (!use_single_softmc_prog) {
 		for (uint i = 0; i < num_iterations; i++) {
-			bool ignore_aggrs = first_it_aggr_init_and_hammer ? i != 0 : false;
-			bool ignore_dummy_hammers = first_it_dummy_hammer ? i != 0 : false;
+			bool ignore_aggrs = first_it_aggr_init_and_hammer && i != 0;
+			bool ignore_dummy_hammers = first_it_dummy_hammer && i != 0;
 			bool verbose = (i == 0);
 			auto loc_bitflips = analyzeTRR(
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
