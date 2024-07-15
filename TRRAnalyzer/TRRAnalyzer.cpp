@@ -1859,7 +1859,7 @@ RowGroup adjust_wrs(const RowGroup &wrs, const std::string &row_layout)
 								    // check if the remaining match
 	}
 
-	assert(wrs_dists.size() != 0 || match); // does includes() return true when wrs_type_dists
+	assert(!wrs_dists.empty() || match); // does includes() return true when wrs_type_dists
 						// is empty?
 
 	if (match) { // we have a match
