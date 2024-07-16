@@ -53,7 +53,7 @@ JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
-vector<RowGroup> filterCandidateRowGroups(const vector<RowGroup> &rowGroups,
+vector<RowGroup> filterNonOverlappingRowGroups(const vector<RowGroup> &rowGroups,
 					  const vector<RowGroup> &candidateRowGroups)
 {
 	vector<RowGroup> filteredCandidates;
@@ -937,7 +937,7 @@ int main(int argc, char **argv)
 
 			// Filter the candidate row groups to find viable ones
 			candidateRowGroups =
-				filterCandidateRowGroups(rowGroups, candidateRowGroups);
+				filterNonOverlappingRowGroups(rowGroups, candidateRowGroups);
 
 			// Further analyze the filtered candidate row groups
 			if (!candidateRowGroups.empty()) {
