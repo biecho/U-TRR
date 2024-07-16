@@ -459,7 +459,6 @@ std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(const std::vector<Row
 	// Make a copy of rowGroups to avoid side effects
 	std::vector<RowGroup> sortedRowGroups = rowGroups;
 
-	// Sort rowGroups by ret_ms
 	std::sort(sortedRowGroups.begin(), sortedRowGroups.end(),
 		  [](const RowGroup &a, const RowGroup &b) { return a.ret_ms < b.ret_ms; });
 
