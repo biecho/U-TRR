@@ -18,6 +18,7 @@
 #include "RowGroup.h"
 #include "DramParameters.h"
 #include "RowGroupSelector.h"
+#include "MemoryAnalysis.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -107,9 +108,9 @@ vector<uint> collect_bitflips(const char *read_data, const bitset<512> &input_da
 			}
 		}
 	} else {
-		for (auto bitflip : bitflips_loc) {
-			uint cl = floor(bitflip / CACHE_LINE_BITS);
-			uint offset = bitflip % CACHE_LINE_BITS;
+		for (auto bitflipLocation : bitflips_loc) {
+			uint cl = floor(bitflipLocation / CACHE_LINE_BITS);
+			uint offset = bitflipLocation % CACHE_LINE_BITS;
 
 			read_data_bitset.reset();
 			for (int i = 0; i < 512 / 32; i++) {
@@ -120,7 +121,7 @@ vector<uint> collect_bitflips(const char *read_data, const bitset<512> &input_da
 			bitset<512> error_mask = read_data_bitset ^ input_data_pattern;
 
 			if (error_mask.test(offset)) {
-				bitflips.push_back(bitflip);
+				bitflips.push_back(bitflipLocation);
 			}
 		}
 	}
@@ -853,9 +854,7 @@ bool is_hammerable(SoftMCPlatform &platform, const RowGroup &wrs, const std::str
 	// we expect all victim rows to be hammerable
 	bool all_victims_have_bitflips = true;
 	for (uint i = 0; i < hr.victim_ids.size(); i++) {
-		bitflips =
-			collect_bitflips(buf + ROW_SIZE_BYTES * i, hr.data_pattern, vector<uint>{});
-
+		bitflips = detectBitflips(buf + ROW_SIZE_BYTES, ROW_SIZE_BYTES, hr.data_pattern);
 		if (bitflips.empty()) {
 			all_victims_have_bitflips = false;
 			std::cout << RED_TXT << "No RH bitflips found in row " << hr.victim_ids[i]
