@@ -477,7 +477,6 @@ std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(const std::vector<Row
 		}
 	}
 
-	// If no valid subset is found, return an empty vector or handle the case appropriately
 	return {};
 }
 
