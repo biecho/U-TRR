@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include "RowGroup.h"
 
 /**
  * @brief Selects a subset of row groups such that the difference in retention times between the
@@ -12,4 +13,6 @@
  * selected row groups.
  * @return A vector of selected RowGroup objects meeting the retention time constraint.
  */
-std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(const std::vector<RowGroup> &rowGroups, const uint numRowGroups, const uint maxAllowedRetTimeDiff);
+std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup> &rowGroups,
+							   uint numRowGroups,
+							   uint maxAllowedRetTimeDiff);

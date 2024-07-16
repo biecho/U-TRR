@@ -30,8 +30,6 @@ target_link_libraries(RowScoutExecutable ${Boost_LIBRARIES} pthread)
 
 # Add your executable
 add_executable(TRRAnalyzerExecutable TRRAnalyzer/TRRAnalyzer.cpp ${DRAM_BENDER_SOURCES}
-        TRRAnalyzer/RowGroupSelector.cpp
-        TRRAnalyzer/RowGroupSelector.h
-        include/RowGroup.h)
+        TRRAnalyzer/RowGroupSelector.cpp)
 # Link Boost and other libraries to your executable
 target_link_libraries(TRRAnalyzerExecutable ${Boost_LIBRARIES} pthread)
