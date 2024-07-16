@@ -98,7 +98,7 @@ typedef struct HammerableRowSet {
 } HammerableRowSet;
 
 JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
-JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
+JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
 // returns a vector of bit positions that experienced bitflips
@@ -375,15 +375,18 @@ std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 }
 
 /**
- * Selects a subset of row groups such that the difference in retention times between the groups is within a specified limit.
+ * Selects a subset of row groups such that the difference in retention times between the groups is
+ * within a specified limit.
  *
  * @param rowGroups A vector of RowGroup objects from which to select.
  * @param numRowGroups The number of row groups to select.
- * @param maxAllowedRetTimeDiff The maximum allowed difference in retention times between any two selected row groups.
+ * @param maxAllowedRetTimeDiff The maximum allowed difference in retention times between any two
+ * selected row groups.
  * @return A vector of selected RowGroup objects meeting the retention time constraint.
  */
 std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(const std::vector<RowGroup> &rowGroups,
-					  const uint numRowGroups, const uint maxAllowedRetTimeDiff)
+							   const uint numRowGroups,
+							   const uint maxAllowedRetTimeDiff)
 {
 	// Make a copy of rowGroups to avoid side effects
 	std::vector<RowGroup> sortedRowGroups = rowGroups;
@@ -809,14 +812,14 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 				to_physical_row_id(hr.victim_ids.back()) + vict_to_aggr_dist));
 
 			if (hr.aggr_ids.back() == wrs.rows[wrs_ind].row_id) // advance wrs_ind
-										 // if the
-										 // corresponding
-										 // row is profiled
-										 // as a retention
-										 // weak row but we
-										 // would like to
-										 // use it as an
-										 // aggressor row
+									    // if the
+									    // corresponding
+									    // row is profiled
+									    // as a retention
+									    // weak row but we
+									    // would like to
+									    // use it as an
+									    // aggressor row
 				wrs_ind++;
 
 			vict_to_aggr_dist = 1;
@@ -932,9 +935,9 @@ void pick_dummy_aggressors(vector<uint> &dummy_aggrs, const uint dummy_aggrs_ban
 {
 	uint cur_dummy = TRR_DUMMY_ROW_DIST % NUM_ROWS;
 	if (weak_row_sets.size() != 0)
-		cur_dummy = (weak_row_sets[0].rows[0].row_id + TRR_WEAK_DUMMY_DIST +
-			     dummy_ids_offset) %
-			    NUM_ROWS;
+		cur_dummy =
+			(weak_row_sets[0].rows[0].row_id + TRR_WEAK_DUMMY_DIST + dummy_ids_offset) %
+			NUM_ROWS;
 
 	const uint MAX_TRIES = 1000000;
 	uint cur_try = 0;
@@ -1786,7 +1789,7 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 			break;
 
 		new_wrs.rows.erase(new_wrs.rows.begin()); // remove the first row id and
-								    // check if the remaining match
+							  // check if the remaining match
 	}
 
 	assert(!wrs_dists.empty() || match); // does includes() return true when wrs_type_dists
@@ -1804,8 +1807,7 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 			for (; new_wrs_it < wrs_dists.size(); new_wrs_it++) {
 				assert(wrs_dists[new_wrs_it] <= d);
 				if (wrs_dists[new_wrs_it] == d) { // found a match
-					matching_weak_rows.push_back(
-						new_wrs.rows[new_wrs_it + 1]);
+					matching_weak_rows.push_back(new_wrs.rows[new_wrs_it + 1]);
 					break;
 				}
 			}
