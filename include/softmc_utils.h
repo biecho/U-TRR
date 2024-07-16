@@ -1,5 +1,4 @@
-#ifndef SOFTMC_UTILS_H
-#define SOFTMC_UTILS_H
+#pragma once
 
 #include <cstdint>
 #include <vector>
@@ -25,11 +24,11 @@ struct OutOfSoftMCRegsException : public std::exception {
 };
 
 static uint32_t label_counter = 0;
-std::string createSMCLabel(const std::string& name) {
+inline std::string createSMCLabel(const std::string& name) {
     return name + std::to_string(label_counter++);
 }
 
-void waitMS(const uint ret_time_ms) {
+inline void waitMS(const uint ret_time_ms) {
     
     static constexpr std::chrono::duration<double, std::milli> min_sleep_duration(1);
     auto start = std::chrono::high_resolution_clock::now();
@@ -38,12 +37,12 @@ void waitMS(const uint ret_time_ms) {
     }
 }
 
-Inst all_nops()
+inline Inst all_nops()
 {
   return  __pack_mininsts(SMC_NOP(), SMC_NOP(), SMC_NOP(), SMC_NOP());
 }
 
-int add_op_with_delay (Program& prog, Mininst ins, int before_cycles, int after_cycles) {
+inline int add_op_with_delay (Program& prog, Mininst ins, int before_cycles, int after_cycles) {
     
     int remaining = before_cycles < 0 ? 0 : before_cycles;
 
@@ -82,7 +81,7 @@ int add_op_with_delay (Program& prog, Mininst ins, int before_cycles, int after_
     return remaining;
 }
 
-int add_op_with_delay (Program& prog, Inst ins, int before_cycles, int after_cycles) {
+inline int add_op_with_delay (Program& prog, Inst ins, int before_cycles, int after_cycles) {
     
     int remaining = before_cycles;
 
@@ -102,7 +101,7 @@ int add_op_with_delay (Program& prog, Inst ins, int before_cycles, int after_cyc
     return remaining;
 }
 
-std::string bin_to_hex(const char* bin, const int length) {
+inline std::string bin_to_hex(const char* bin, const int length) {
 	
 	std::string hex_str;
 
@@ -160,9 +159,9 @@ typedef enum LogPhysRowIDScheme {
     MAX
 } LogPhysRowIDScheme;
 
-LogPhysRowIDScheme logical_physical_conversion_scheme = LogPhysRowIDScheme::SEQUENTIAL;
+extern LogPhysRowIDScheme logical_physical_conversion_scheme;
 
-LogicalRowID to_logical_row_id(uint physical_row_id)
+inline LogicalRowID to_logical_row_id(uint physical_row_id)
 {
 	switch (logical_physical_conversion_scheme) {
 	case LogPhysRowIDScheme::SEQUENTIAL: {
@@ -187,7 +186,7 @@ LogicalRowID to_logical_row_id(uint physical_row_id)
 	return 0;
 }
 
-PhysicalRowID to_physical_row_id(uint logical_row_id) {
+inline PhysicalRowID to_physical_row_id(uint logical_row_id) {
     
     switch(logical_physical_conversion_scheme) {
         case LogPhysRowIDScheme::SEQUENTIAL: {
@@ -211,7 +210,3 @@ PhysicalRowID to_physical_row_id(uint logical_row_id) {
         }
     }
 }
-
-
-
-#endif // SOFTMC_UTILS_H

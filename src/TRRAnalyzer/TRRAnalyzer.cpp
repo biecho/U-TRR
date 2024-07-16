@@ -1,13 +1,11 @@
 #include "instruction.h"
 #include "prog.h"
 #include "platform.h"
-#include "perfect_hash.h"
 #include "json_struct.h"
 #include "softmc_utils.h"
 #include "ProgressBar.hpp"
 
 #include <string>
-#include <fstream>
 #include <iostream>
 #include <list>
 #include <cassert>
@@ -16,7 +14,7 @@
 #include <stdexcept>
 
 #include "RowGroup.h"
-#include "DramParameters.h"
+#include "Dram.h"
 #include "MemoryAnalysis.h"
 
 #include <boost/program_options.hpp>
@@ -32,12 +30,6 @@ using namespace boost::filesystem;
 // #define PRINT_SOFTMC_PROGS
 
 using namespace std;
-
-#define CASR 0
-#define BASR 1
-#define RASR 2
-
-#define NUM_SOFTMC_REGS 16
 
 #define RED_TXT "\033[31m"
 #define GREEN_TXT "\033[32m"
@@ -69,85 +61,6 @@ typedef struct HammerableRowSet {
 	uint bank_id;
 	uint ret_ms;
 } HammerableRowSet;
-
-void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
-		 const uint row_batch_size, const vector<RowData> &rows_data)
-{
-	const int REG_TMP_WRDATA = 15;
-	const int REG_BANK_ADDR = 12;
-	const int REG_ROW_ADDR = 13;
-	const int REG_COL_ADDR = 14;
-	const int REG_NUM_COLS = 11;
-
-	const int REG_BATCH_IT = 6;
-	const int REG_BATCH_SIZE = 5;
-
-	bitset<512> bitset_int_mask(0xFFFFFFFF);
-	int remaining_cycs = 0;
-
-	// ===== BEGIN SoftMC Program =====
-
-	program.add_inst(SMC_LI(start_row, REG_ROW_ADDR));
-	program.add_inst(SMC_LI(target_bank, REG_BANK_ADDR));
-
-	add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 1), 0, 0); // precharge all banks
-
-	program.add_inst(SMC_LI(NUM_COLS_PER_ROW * 8, REG_NUM_COLS));
-
-	program.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each READ reads 8 columns
-	program.add_inst(SMC_LI(1, BASR)); // Load 1 into BASR
-	program.add_inst(SMC_LI(1, RASR)); // Load 1 into RASR
-
-	/* ==== Initialize data of rows in the batch ==== */
-	program.add_inst(SMC_LI(0, REG_BATCH_IT));
-	program.add_inst(SMC_LI(row_batch_size, REG_BATCH_SIZE));
-
-	assert(row_batch_size % rows_data.size() == 0 &&
-	       "Data patterns to initialize consecutive rows with must be multiple of the batch of "
-	       "row to initialize at once.");
-
-	program.add_label("INIT_BATCH");
-
-	int row_it = 0;
-	for (auto &row_data : rows_data) {
-		// set up the input data in the wide register
-		for (int pos = 0; pos < 16; pos++) {
-			program.add_inst(SMC_LI(
-				(((row_data.input_data_pattern >> 32 * pos) & bitset_int_mask)
-					 .to_ulong() &
-				 0xFFFFFFFF),
-				REG_TMP_WRDATA));
-			program.add_inst(SMC_LDWD(REG_TMP_WRDATA, pos));
-		}
-
-		remaining_cycs -= (16 * 4 * 2 + 4);
-		assert(remaining_cycs <= 0 && "I should add some delay here");
-
-		// activate the next row and increment the row address register
-		add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0,
-				  trcd_cycles - 1);
-
-		// write data to the row and precharge
-		program.add_inst(SMC_LI(0, REG_COL_ADDR));
-
-		string new_lbl = "INIT_ROW" + to_string(row_it++);
-		program.add_label(new_lbl);
-		add_op_with_delay(program, SMC_WRITE(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0), 0,
-				  0);
-		remaining_cycs = 0;
-		program.add_branch(program.BR_TYPE::BL, REG_COL_ADDR, REG_NUM_COLS, new_lbl);
-
-		// Wait for t(write-precharge)
-		// & precharge the open bank
-		remaining_cycs =
-			add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
-	}
-
-	program.add_inst(SMC_ADDI(REG_BATCH_IT, rows_data.size(), REG_BATCH_IT));
-	program.add_branch(program.BR_TYPE::BL, REG_BATCH_IT, REG_BATCH_SIZE, "INIT_BATCH");
-
-	program.add_inst(SMC_END());
-}
 
 void readFromDRAM(Program &program, const uint target_bank, const uint start_row,
 		  const uint row_batch_size)
@@ -1596,9 +1509,8 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 
 			for (uint uni_ind = 0; uni_ind < hrs.uni_ids.size(); uni_ind++) {
 				bitflips = detectSpecificBitflips(buf + row_it * ROW_SIZE_BYTES,
-								  ROW_SIZE_BYTES,
-							    hrs.data_pattern,
-							    hrs.uni_bitflip_locs[uni_ind]);
+								  ROW_SIZE_BYTES, hrs.data_pattern,
+								  hrs.uni_bitflip_locs[uni_ind]);
 				row_it++;
 
 				loc_bitflips.push_back(bitflips);
@@ -2375,8 +2287,7 @@ int main(int argc, char **argv)
 					     vict_ind++) {
 						bitflips = detectSpecificBitflips(
 							buf + row_it * ROW_SIZE_BYTES,
-							ROW_SIZE_BYTES,
-							hr.data_pattern,
+							ROW_SIZE_BYTES, hr.data_pattern,
 							hr.vict_bitflip_locs[vict_ind]);
 						row_it++;
 
@@ -2397,8 +2308,7 @@ int main(int argc, char **argv)
 					     uni_ind++) {
 						bitflips = detectSpecificBitflips(
 							buf + row_it * ROW_SIZE_BYTES,
-							ROW_SIZE_BYTES,
-							aggr_data_pattern,
+							ROW_SIZE_BYTES, aggr_data_pattern,
 							hr.uni_bitflip_locs[uni_ind]);
 						row_it++;
 

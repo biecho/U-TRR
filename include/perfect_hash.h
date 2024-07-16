@@ -1,5 +1,5 @@
-#ifndef PERFECT_HASH_H
-#define PERFECT_HASH_H
+#pragma once
+
 class Perfect_Hash {
     /* C++ code produced by gperf version 3.0.4 */
     /* Command-line: gperf -L C++ -7 -C -E -m 100 table  */
@@ -7,14 +7,14 @@ class Perfect_Hash {
 
     /* maximum key range = 16, duplicates = 0 */
   private:
-      static constexpr unsigned char asso_values[] = {
+      static inline constexpr unsigned char asso_values[] = {
           27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
           27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 15, 7,  3,  1,  0,  27,
           27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
           27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
           27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27};
       template <typename It>
-      static constexpr unsigned int hash(It str)
+      static inline constexpr unsigned int hash(It str)
       {
           return 
               asso_values[(unsigned char)str[3] + 2] + asso_values[(unsigned char)str[2] + 1] +
@@ -65,5 +65,3 @@ class Perfect_Hash {
 
 constexpr unsigned char Perfect_Hash::asso_values[];
 constexpr char Perfect_Hash::hex_lut[];
-
-#endif // PERFECT_HASH_H
