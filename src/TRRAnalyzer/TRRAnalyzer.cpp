@@ -62,63 +62,6 @@ typedef struct HammerableRowSet {
 	uint ret_ms;
 } HammerableRowSet;
 
-void readFromDRAM(Program &program, const uint target_bank, const uint start_row,
-		  const uint row_batch_size)
-{
-	// const int REG_TMP_WRDATA = 15;
-	const int REG_BANK_ADDR = 12;
-	const int REG_ROW_ADDR = 13;
-	const int REG_COL_ADDR = 14;
-	const int REG_NUM_COLS = 11;
-
-	const int REG_BATCH_IT = 6;
-	const int REG_BATCH_SIZE = 5;
-
-	int remaining_cycs = 0;
-
-	// ===== BEGIN SoftMC Program =====
-
-	program.add_inst(SMC_LI(start_row, REG_ROW_ADDR));
-	program.add_inst(SMC_LI(target_bank, REG_BANK_ADDR));
-
-	add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 1), 0, 0); // precharge all banks
-
-	// program.add_inst(SMC_LI(NUM_ROWS, REG_NUM_ROWS));
-	program.add_inst(SMC_LI(NUM_COLS_PER_ROW * 8, REG_NUM_COLS));
-
-	program.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each READ reads 8 columns
-	program.add_inst(SMC_LI(1, BASR)); // Load 1 into BASR
-	program.add_inst(SMC_LI(1, RASR)); // Load 1 into RASR
-
-	/* ==== Read the data of rows in the batch ==== */
-	program.add_inst(SMC_LI(0, REG_BATCH_IT));
-	program.add_inst(SMC_LI(row_batch_size, REG_BATCH_SIZE));
-
-	program.add_label("READ_BATCH");
-
-	// activate the next row and increment the row address register
-	add_op_with_delay(program, SMC_ACT(REG_BANK_ADDR, 0, REG_ROW_ADDR, 1), 0, trcd_cycles - 1);
-
-	// issue read cmds to read out the entire row and precharge
-	program.add_inst(SMC_LI(0, REG_COL_ADDR));
-
-	string new_lbl = "READ_ROW";
-	program.add_label(new_lbl);
-	add_op_with_delay(program, SMC_READ(REG_BANK_ADDR, 0, REG_COL_ADDR, 1, 0, 0),
-			  remaining_cycs, 4);
-	remaining_cycs = 0;
-	program.add_branch(program.BR_TYPE::BL, REG_COL_ADDR, REG_NUM_COLS, new_lbl);
-
-	// Wait for t(write-precharge)
-	// & precharge the open bank
-	remaining_cycs = add_op_with_delay(program, SMC_PRE(REG_BANK_ADDR, 0, 0), 0, trp_cycles);
-
-	program.add_inst(SMC_ADDI(REG_BATCH_IT, 1, REG_BATCH_IT));
-	program.add_branch(program.BR_TYPE::BL, REG_BATCH_IT, REG_BATCH_SIZE, "READ_BATCH");
-
-	program.add_inst(SMC_END());
-}
-
 uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns)
 {
 	uint pcie_cycles = ceil(5000 / FPGA_PERIOD); // assuming 5us pcie transfer latency
