@@ -62,41 +62,6 @@ typedef struct HammerableRowSet {
 	uint ret_ms;
 } HammerableRowSet;
 
-uint determineRowBatchSize(const uint retention_ms, const uint num_data_patterns)
-{
-	uint pcie_cycles = ceil(5000 / FPGA_PERIOD); // assuming 5us pcie transfer latency
-	uint setup_cycles = 36;
-	uint pattern_loop_cycles = 64 /*write reg init*/ + 1 /*ACT*/ + trcd_cycles + 4 +
-				   (4 + 24) * NUM_COLS_PER_ROW /*row write*/ + 1 + trp_cycles;
-
-	// cycles(retention_ms) = pcie_cycles + setup_cycles +
-	// (X/NUM_PATTERNS)*(NUM_PATTERNS*pattern_loop_cycles + 28)
-	//
-	// X: batch size
-	//
-	// X = ((retention_cycles - pcie_cycles -
-	// setup_cycles)/(NUM_PATTERNS*pattern_loop_cycles + 28))*NUM_PATTERNS
-	ulong retention_cycles = floor((retention_ms * 1000000) / FPGA_PERIOD);
-
-	uint batch_size = ((retention_cycles - pcie_cycles - setup_cycles) /
-			   (num_data_patterns * pattern_loop_cycles + 28)) *
-			  num_data_patterns;
-
-	// cout << "Calculated initial batch size as " << batch_size << " for " << retention_ms << "
-	// ms" << endl; cout << "Rounding batch_size to the previous power-of-two number" << endl;
-
-	assert(NUM_ROWS % num_data_patterns == 0 &&
-	       "Number of specified data patterns must be a divisor of NUM_ROWS, i.e., power of "
-	       "two");
-
-	// rounding
-	batch_size = min(1 << (uint)(log2(batch_size)), NUM_ROWS);
-
-	// cout << "The final batch_size: " << batch_size << endl;
-
-	return batch_size;
-}
-
 bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
 {
 	std::string cur_line;

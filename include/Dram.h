@@ -41,5 +41,6 @@ extern int trefi_cycles;
 void writeToDRAM(Program &program, uint target_bank, uint start_row,
 		 uint row_batch_size, const vector<RowData> &rows_data);
 
-void readFromDRAM(Program &program, const uint target_bank, const uint start_row,
-		  const uint row_batch_size);
+void readFromDRAM(Program &program, uint target_bank, uint start_row, uint row_batch_size);
+
+uint determineRowBatchSize(uint retention_ms, uint num_data_patterns);
