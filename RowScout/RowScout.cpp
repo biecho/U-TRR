@@ -4,6 +4,8 @@
 #include "platform.h"
 #include "prog.h"
 #include "softmc_utils.h"
+
+#include "DramParameters.h"
 #include "RowGroup.h"
 
 #include <algorithm>
@@ -29,39 +31,12 @@ using namespace std;
 #define RASR 2
 
 #define NUM_SOFTMC_REGS 16
-#define FPGA_PERIOD 1.5015f // ns
 
 #define RED_TXT "\033[31m"
 #define GREEN_TXT "\033[32m"
 #define BLUE_TXT "\033[34m"
 #define MAGENTA_TXT "\033[35m"
 #define NORMAL_TXT "\033[0m"
-
-/*** DRAM Organization Parameters - UPDATE here if the organization of your DRAM module differs ***/
-int NUM_BANKS = 16; // this is the total number of banks in the chip
-int NUM_BANK_GROUPS = 4;
-int NUM_ROWS = 32768;
-int ROW_SIZE = 8192;
-int NUM_COLS_PER_ROW = 128;
-/******/
-
-/*** DRAM Timing Parameters - UPDATE the timing parameters to match the timings of your module ***/
-float DEFAULT_TRCD = 13.5f; // ns
-float DEFAULT_TRAS = 35.0f; // ns
-float DEFAULT_TRP = 13.5f; // ns
-float DEFAULT_TWR = 15.0f; // ns
-float DEFAULT_TRFC = 260.0f; // ns
-float DEFAULT_TRRDS = 5.3f; // ns (ACT-ACT to different bank groups)
-float DEFAULT_TRRDL = 6.4f; // ns (ACT-ACT to same bank group)
-/******/
-
-int trcd_cycles = (int)ceil(DEFAULT_TRCD / FPGA_PERIOD);
-int tras_cycles = (int)ceil(DEFAULT_TRAS / FPGA_PERIOD);
-int trp_cycles = (int)ceil(DEFAULT_TRP / FPGA_PERIOD);
-int twr_cycles = (int)ceil(DEFAULT_TWR / FPGA_PERIOD);
-int trfc_cycles = (int)ceil(DEFAULT_TRFC / FPGA_PERIOD);
-int trrds_cycles = (int)ceil(DEFAULT_TRRDS / FPGA_PERIOD);
-int trrdl_cycles = (int)ceil(DEFAULT_TRRDL / FPGA_PERIOD);
 
 // Retention Profiler Parameters
 uint RETPROF_NUM_ITS = 100; // When a candidate row group is found, the profiler repeats the
