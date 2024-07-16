@@ -7,6 +7,7 @@
 
 #include "DramParameters.h"
 #include "RowGroup.h"
+#include "MemoryAnalysis.h"
 
 #include <algorithm>
 #include <array>
@@ -78,42 +79,6 @@ vector<RowGroup> filterCandidateRowGroups(const vector<RowGroup> &rowGroups,
 	return filteredCandidates;
 }
 
-/**
- * @brief Detects bitflips in the read data by comparing it against the input data pattern.
- *
- * @param data Pointer to the read data.
- * @param expectedPattern The expected data pattern.
- * @return A vector of positions where bitflips were detected.
- */
-vector<uint> detectBitflips(const char *data, size_t sizeBytes, const bitset<512> &expectedPattern)
-{
-	bitset<512> read_data_bitset;
-	vector<uint> bitflips;
-
-	const int bitsPerByte = 8;
-	const int cacheLineBytes = 64;
-
-	// check for bitflips in each cache line
-	for (int cl = 0; cl < sizeBytes / cacheLineBytes; cl++) {
-		read_data_bitset.reset();
-
-		for (int i = 0; i < cacheLineBytes; i++) {
-			auto tmp_bitset = data[cl * cacheLineBytes + i];
-			read_data_bitset |= (tmp_bitset << i * bitsPerByte);
-		}
-
-		auto error_mask = read_data_bitset ^ expectedPattern;
-		if (error_mask.any()) {
-			for (int i = 0; i < error_mask.size(); i++) {
-				if (error_mask.test(i)) {
-					bitflips.push_back(cl * CACHE_LINE_BITS + i);
-				}
-			}
-		}
-	}
-
-	return bitflips;
-}
 
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 		 const uint row_batch_size, const vector<RowData> &rows_data)

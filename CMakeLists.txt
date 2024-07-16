@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/tools)
 include_directories(${CMAKE_SOURCE_DIR}/libs/DRAM-Bender/sources/api)
 
 # Find the Boost package
@@ -23,13 +22,25 @@ file(GLOB_RECURSE DRAM_BENDER_SOURCES
         ${CMAKE_SOURCE_DIR}/libs/DRAM-Bender/sources/api/*.cpp
 )
 
-# Add your executable
-add_executable(RowScoutExecutable src/RowScout/RowScout.cpp ${DRAM_BENDER_SOURCES})
-# Link Boost and other libraries to your executable
+# Add source files for the general src directory
+file(GLOB SRC_SOURCES
+        ${PROJECT_SOURCE_DIR}/src/*.cpp
+)
+
+# Add RowScout specific sources
+file(GLOB ROW_SCOUT_SOURCES
+        ${PROJECT_SOURCE_DIR}/src/RowScout/*.cpp
+)
+
+# Add TRRAnalyzer specific sources
+file(GLOB TRR_ANALYZER_SOURCES
+        ${PROJECT_SOURCE_DIR}/src/TRRAnalyzer/*.cpp
+)
+
+# Add RowScoutExecutable
+add_executable(RowScoutExecutable ${SRC_SOURCES} ${ROW_SCOUT_SOURCES} ${DRAM_BENDER_SOURCES})
 target_link_libraries(RowScoutExecutable ${Boost_LIBRARIES} pthread)
 
-# Add your executable
-add_executable(TRRAnalyzerExecutable src/TRRAnalyzer/TRRAnalyzer.cpp ${DRAM_BENDER_SOURCES}
-        src/RowGroupSelector.cpp)
-# Link Boost and other libraries to your executable
+# Add TRRAnalyzerExecutable
+add_executable(TRRAnalyzerExecutable ${SRC_SOURCES} ${TRR_ANALYZER_SOURCES} ${DRAM_BENDER_SOURCES})
 target_link_libraries(TRRAnalyzerExecutable ${Boost_LIBRARIES} pthread)
