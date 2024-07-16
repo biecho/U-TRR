@@ -56,9 +56,20 @@ typedef struct HammerableRowSet {
 	uint ret_ms;
 } HammerableRowSet;
 
+struct RowInitializationData {
+	vector<uint> rows;
+	vector<bitset<512> > patterns;
+};
+
+/**
+ * Initializes data rows in memory using specific data patterns.
+ *
+ * This function iterates through each given row, sets up the necessary registers and data patterns,
+ * and performs the memory operations to initialize the rows. It ensures that register allocations
+ * are properly managed and that each memory operation adheres to specified timings.
+ */
 void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
-		   const SMC_REG reg_num_cols, const vector<uint> &rows_to_init,
-		   const vector<bitset<512> > &data_patts)
+		   const SMC_REG reg_num_cols, RowInitializationData rowInitData)
 {
 	uint initial_free_regs = reg_alloc.num_free_regs();
 
@@ -67,6 +78,9 @@ void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	prog.add_inst(SMC_LI(8, CASR)); // Load 8 into CASR since each WRITE writes 8 columns
 	SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
 	SMC_REG reg_col_addr = reg_alloc.allocate_SMC_REG();
+
+	auto rows_to_init = rowInitData.rows;
+	auto data_patts = rowInitData.patterns;
 
 	assert(rows_to_init.size() == data_patts.size());
 	for (uint i = 0; i < rows_to_init.size(); i++) {
@@ -109,14 +123,14 @@ void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
 }
 
-void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
+void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg_bank_addr,
 		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
-		       const bool cascaded_hammer, const uint hammer_duration);
+		       bool cascaded_hammer, uint hammer_duration);
 
-void init_hammerable_row_set(Program &prog, SoftMCRegAllocator &reg_alloc,
-			     const SMC_REG reg_bank_addr, const SMC_REG reg_num_cols,
-			     const HammerableRowSet &hr, const bool init_aggrs_first,
-			     const bool ignore_aggrs, const bool init_only_victims)
+RowInitializationData createRowInitializationData(const HammerableRowSet &hr,
+						  const bool init_aggrs_first,
+						  const bool ignore_aggrs,
+						  const bool init_only_victims)
 {
 	vector<uint> rows_to_init;
 	vector<bitset<512> > data_patts;
@@ -151,7 +165,7 @@ void init_hammerable_row_set(Program &prog, SoftMCRegAllocator &reg_alloc,
 		}
 	}
 
-	init_row_data(prog, reg_alloc, reg_bank_addr, reg_num_cols, rows_to_init, data_patts);
+	return { rows_to_init, data_patts };
 }
 
 void init_HRS_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
@@ -176,8 +190,12 @@ void init_HRS_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	// first and then the aggressors one by one. This is to make aggressors the last row
 	// activated prior to a refresh when no rows are hammering during the hammering phase. This
 	// change is useful for analyzing the sampling method of Hynix modules
-	init_hammerable_row_set(prog, reg_alloc, reg_bank_addr, reg_num_cols, hr, init_aggrs_first,
-				ignore_aggrs, init_only_victims);
+	Program &prog1 = prog;
+	SoftMCRegAllocator &regAlloc = reg_alloc;
+	auto rowInitData =
+		createRowInitializationData(hr, init_aggrs_first, ignore_aggrs, init_only_victims);
+
+	init_row_data(prog1, regAlloc, reg_bank_addr, reg_num_cols, rowInitData);
 }
 
 void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
@@ -532,8 +550,11 @@ bool is_hammerable(SoftMCPlatform &platform, const RowGroup &wrs, const std::str
 
 	// write to the victim and aggressor row(s)
 	// first all victims, and then the aggressors are initialized
-	init_hammerable_row_set(p_testRH, reg_alloc, reg_bank_addr, reg_num_cols, hr, false, false,
-				false);
+	Program &prog = p_testRH;
+	SoftMCRegAllocator &regAlloc = reg_alloc;
+	auto rowInitData = createRowInitializationData(hr, false, false, false);
+
+	init_row_data(prog, regAlloc, reg_bank_addr, reg_num_cols, rowInitData);
 
 	/*************************/
 	/*** Perform Hammering ***/
