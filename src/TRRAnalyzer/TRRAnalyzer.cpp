@@ -16,6 +16,7 @@
 #include "RowGroup.h"
 #include "Dram.h"
 #include "MemoryAnalysis.h"
+#include "Colors.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -30,13 +31,6 @@ using namespace boost::filesystem;
 // #define PRINT_SOFTMC_PROGS
 
 using namespace std;
-
-#define RED_TXT "\033[31m"
-#define GREEN_TXT "\033[32m"
-#define YELLOW_TXT "\033[33m"
-#define BLUE_TXT "\033[34m"
-#define MAGENTA_TXT "\033[35m"
-#define NORMAL_TXT "\033[0m"
 
 // TRR Analyzer Parameters
 const float TRR_RETTIME_MULT = 1.2f;
@@ -61,55 +55,6 @@ typedef struct HammerableRowSet {
 	uint bank_id;
 	uint ret_ms;
 } HammerableRowSet;
-
-bool getNextJSONObj(boost::filesystem::ifstream &f_row_groups, string &s_weak)
-{
-	std::string cur_line;
-	std::getline(f_row_groups, cur_line);
-
-	s_weak = "";
-	while (cur_line != "}") {
-		if (f_row_groups.eof())
-			return false;
-
-		s_weak += cur_line;
-		std::getline(f_row_groups, cur_line);
-	}
-	s_weak += cur_line;
-
-	return true;
-}
-
-std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
-{
-	boost::filesystem::path rowScoutFilePath(rowScoutFile);
-	if (!boost::filesystem::exists(rowScoutFilePath)) {
-		std::cerr << RED_TXT << "ERROR: RowScout file not found: " << rowScoutFile
-			  << NORMAL_TXT << std::endl;
-		exit(-1);
-	}
-
-	boost::filesystem::ifstream rowScoutFileStream;
-	rowScoutFileStream.open(rowScoutFilePath);
-
-	vector<RowGroup> rowGroups;
-	string rowGroupJson;
-
-	uint i = 0;
-	while (getNextJSONObj(rowScoutFileStream, rowGroupJson)) {
-		JS::ParseContext context(rowGroupJson);
-
-		RowGroup rowGroup;
-		context.parseTo(rowGroup);
-
-		rowGroup.index_in_file = i++;
-		rowGroups.push_back(rowGroup);
-	}
-
-	rowScoutFileStream.close();
-
-	return rowGroups;
-}
 
 void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
 		   const SMC_REG reg_num_cols, const vector<uint> &rows_to_init,

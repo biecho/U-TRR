@@ -132,3 +132,5 @@ std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup>
  */
 vector<RowGroup> filterForExclusiveRowGroups(const vector<RowGroup> &rowGroups,
 					       const vector<RowGroup> &candidateRowGroups);
+
+std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile);

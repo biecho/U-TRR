@@ -8,6 +8,7 @@
 #include "Dram.h"
 #include "RowGroup.h"
 #include "MemoryAnalysis.h"
+#include "Colors.h"
 
 #include <algorithm>
 #include <array>
@@ -28,12 +29,6 @@ using namespace boost::filesystem;
 using namespace std;
 
 vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
-
-#define RED_TXT "\033[31m"
-#define GREEN_TXT "\033[32m"
-#define BLUE_TXT "\033[34m"
-#define MAGENTA_TXT "\033[35m"
-#define NORMAL_TXT "\033[0m"
 
 // Retention Profiler Parameters
 uint RETPROF_NUM_ITS = 100; // When a candidate row group is found, the profiler repeats the
