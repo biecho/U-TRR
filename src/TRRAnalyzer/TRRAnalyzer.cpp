@@ -218,6 +218,17 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 	}
 }
 
+/**
+ * Performs an interleaved Row Hammer attack on a specified set of rows within a memory bank.
+ * This function cycles through the rows, hammering each one in rounds according to the minimum
+ * number of hammers needed across all rows, ensuring each row is hammered uniformly over time.
+ *
+ * The function first checks if there are any rows to hammer. If not, it exits early.
+ * It then repeatedly cycles through each row, applying a number of hammers based on the smallest
+ * non-zero hammer count in the current round. This interleaving continues until all specified
+ * hammer counts are exhausted. The function ensures each row is hammered the correct number
+ * of times as efficiently as possible by adjusting the operations based on remaining hammer counts.
+ */
 void hammerAggressorInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
 				const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
 				const vector<uint> &num_hammers, const uint hammer_duration)
