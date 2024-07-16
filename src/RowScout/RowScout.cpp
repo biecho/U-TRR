@@ -9,6 +9,7 @@
 #include "RowGroup.h"
 #include "MemoryAnalysis.h"
 #include "Colors.h"
+#include "BitUtils.h"
 
 #include <algorithm>
 #include <array>
@@ -637,52 +638,11 @@ int main(int argc, char **argv)
 	auto t_two_rows_recvd = chrono::high_resolution_clock::now();
 	chrono::duration<double> elapsed{};
 
-	const uint default_data_patterns[] = { 0x0,	   0xFFFFFFFF, 0x00000000, 0x55555555,
-					       0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
-
-	// this is ugly but I am leaving it like this to make things easier in case we decide to use
-	// different input data patterns for different rows.
 	vector<RowData> rows_data;
-	vector<int> input_data_patterns = { input_data_pattern };
-	for (int inp_pat : input_data_patterns) {
-		RowData rd;
-		bitset<512> rdata;
-
-		switch (inp_pat) {
-		case 0: { // random
-			// GENERATING RANDOM TEST DATA
-			uint32_t rand_int;
-
-			for (int pos = 0; pos < 16; pos++) {
-				rdata <<= 32;
-				rand_int = (rand() << 16) | (0x0000FFFF & rand());
-				rdata |= rand_int;
-			}
-			break;
-		}
-		case 1:
-		case 2: // 1's for victim rows, 0's for aggressor rows
-		case 3:
-		case 4:
-		case 5:
-		case 6: {
-			for (int pos = 0; pos < 16; pos++) {
-				rdata <<= 32;
-				rdata |= default_data_patterns[inp_pat];
-			}
-
-			break;
-		}
-		default: {
-			cerr << "Undefined input data pattern mode: " << inp_pat << endl;
-			return -1;
-		}
-		}
-
-		rd.input_data_pattern = rdata;
-		rd.pattern_id = inp_pat;
-		rows_data.push_back(rd);
-	}
+	RowData rd;
+	rd.input_data_pattern = generateDataPattern(input_data_pattern);
+	rd.pattern_id = input_data_pattern;
+	rows_data.push_back(rd);
 
 	int retention_ms = starting_ret_time;
 	char *buf = nullptr;
