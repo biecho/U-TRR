@@ -1,5 +1,5 @@
 #include <algorithm>
-#include "RowGroupSelector.h"
+#include "RowGroup.h"
 
 std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup> &rowGroups,
 							   uint numRowGroups,

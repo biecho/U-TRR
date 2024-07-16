@@ -17,7 +17,6 @@
 
 #include "RowGroup.h"
 #include "DramParameters.h"
-#include "RowGroupSelector.h"
 #include "MemoryAnalysis.h"
 
 #include <boost/program_options.hpp>

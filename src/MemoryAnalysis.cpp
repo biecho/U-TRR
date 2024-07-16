@@ -8,14 +8,13 @@ const int bitsPerByte = 8;
 const int cacheLineBytes = 64;
 const int cacheLineBits = cacheLineBytes * bitsPerByte;
 
-std::bitset<512> bitsetFromCacheLine(const char *data, int cacheLineIndex)
+std::bitset<512> bitsetFromCacheLine(const char *data, uint cacheLineIndex)
 {
 	std::bitset<512> bitset;
 
 	for (int i = 0; i < cacheLineBytes; i++) {
 		auto nextByte = data[cacheLineIndex * cacheLineBytes + i];
-		bitset |= std::bitset<512>(static_cast<unsigned char>(nextByte))
-			  << (i * bitsPerByte);
+		bitset |= nextByte << (i * bitsPerByte);
 	}
 
 	return bitset;
@@ -52,7 +51,6 @@ std::vector<uint> detectSpecificBitflips(const char *data, size_t sizeBytes,
 	const size_t numCacheLines = sizeBytes / cacheLineBytes;
 
 	std::vector<uint> bitflips;
-	std::bitset<512> bitset;
 
 	// Only check specified locations
 	for (auto bitflipLocation : bitflipLocations) {
@@ -61,17 +59,9 @@ std::vector<uint> detectSpecificBitflips(const char *data, size_t sizeBytes,
 
 		// Ensure that the location is within the bounds
 		if (cl < numCacheLines) {
-			bitset.reset();
-
-			// Reconstruct the bitset for the specific cache line
-			for (int i = 0; i < cacheLineBytes; i++) {
-				auto nextByte = data[cl * cacheLineBytes + i];
-				bitset |= (nextByte << i * bitsPerByte);
-			}
-
+			auto bitset = bitsetFromCacheLine(data, cl);
 			auto errorMask = bitset ^ expectedPattern;
 
-			// Check if there's an error at the specified offset
 			if (errorMask.test(offset)) {
 				bitflips.push_back(bitflipLocation);
 			}
