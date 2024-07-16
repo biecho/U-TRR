@@ -127,6 +127,9 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg
 		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
 		       bool cascaded_hammer, uint hammer_duration);
 
+void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc,
+			     const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+			     const vector<uint> &num_hammers, const uint hammer_duration);
 RowInitializationData createRowInitializationData(const HammerableRowSet &hr,
 						  const bool init_aggrs_first,
 						  const bool ignore_aggrs,
@@ -202,17 +205,17 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
 		       const bool cascaded_hammer, const uint hammer_duration)
 {
-	if (rows_to_hammer.empty())
-		return; // nothing to hammer
-
-	uint initial_free_regs = reg_alloc.num_free_regs();
-	uint remaining_cycs = 0;
-
-	SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
-	SMC_REG reg_cur_hammers = reg_alloc.allocate_SMC_REG();
-	SMC_REG reg_num_hammers = reg_alloc.allocate_SMC_REG();
-
 	if (!cascaded_hammer) {
+		if (rows_to_hammer.empty())
+			return; // nothing to hammer
+
+		uint initial_free_regs = reg_alloc.num_free_regs();
+		uint remaining_cycs = 0;
+
+		SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
+		SMC_REG reg_cur_hammers = reg_alloc.allocate_SMC_REG();
+		SMC_REG reg_num_hammers = reg_alloc.allocate_SMC_REG();
+
 		// it is complicated to efficiently hammer rows different number of times while
 		// activating them one after another We implement the following algorithm:
 		// 1. If there is a non-zero element in hammer_per_ref, hammer the rows
@@ -278,39 +281,59 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 				      });
 		}
 
-	} else { // cascaded_hammer == true
-		for (int ind_row = 0; ind_row < rows_to_hammer.size(); ind_row++) {
-			int row_id = rows_to_hammer[ind_row];
+		reg_alloc.free_SMC_REG(reg_row_addr);
+		reg_alloc.free_SMC_REG(reg_cur_hammers);
+		reg_alloc.free_SMC_REG(reg_num_hammers);
 
-			if (num_hammers[ind_row] == 0) // do not hammer rows with 0 hammer count
-				continue;
+		assert(reg_alloc.num_free_regs() == initial_free_regs);
+	} else {
+		hammerAggressorsCascade(prog, reg_alloc, reg_bank_addr, rows_to_hammer, num_hammers,
+					hammer_duration);
+	}
+}
 
-			prog.add_inst(SMC_LI(row_id, reg_row_addr));
-			prog.add_inst(SMC_LI(num_hammers[ind_row], reg_num_hammers));
-			prog.add_inst(SMC_LI(0, reg_cur_hammers));
+void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc,
+			     const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+			     const vector<uint> &num_hammers, const uint hammer_duration)
+{
+	if (rows_to_hammer.empty())
+		return; // nothing to hammer
 
-			string lbl_rh = createSMCLabel("ROWHAMMERING");
-			prog.add_label(lbl_rh);
+	uint initial_free_regs = reg_alloc.num_free_regs();
+	uint remaining_cycs = 0;
 
-			if (hammer_duration < 20)
-				remaining_cycs = add_op_with_delay(
-					prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0,
-					tras_cycles + hammer_duration - 1);
-			else {
-				remaining_cycs = add_op_with_delay(
-					prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0, 0);
-				remaining_cycs = add_op_with_delay(
-					prog, SMC_SLEEP(std::ceil(hammer_duration / 4.0f)), 0,
-					tras_cycles - 5);
-			}
+	SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
+	SMC_REG reg_cur_hammers = reg_alloc.allocate_SMC_REG();
+	SMC_REG reg_num_hammers = reg_alloc.allocate_SMC_REG();
 
+	for (int ind_row = 0; ind_row < rows_to_hammer.size(); ind_row++) {
+		int row_id = rows_to_hammer[ind_row];
+
+		if (num_hammers[ind_row] == 0) // do not hammer rows with 0 hammer count
+			continue;
+
+		prog.add_inst(SMC_LI(row_id, reg_row_addr));
+		prog.add_inst(SMC_LI(num_hammers[ind_row], reg_num_hammers));
+		prog.add_inst(SMC_LI(0, reg_cur_hammers));
+
+		string lbl_rh = createSMCLabel("ROWHAMMERING");
+		prog.add_label(lbl_rh);
+
+		if (hammer_duration < 20)
 			remaining_cycs =
-				add_op_with_delay(prog, SMC_PRE(reg_bank_addr, 0, 0), 0, 0);
-			remaining_cycs = 0;
-			prog.add_inst(SMC_ADDI(reg_cur_hammers, 1, reg_cur_hammers));
-			prog.add_branch(Program::BR_TYPE::BL, reg_cur_hammers, reg_num_hammers,
-					lbl_rh);
+				add_op_with_delay(prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0),
+						  0, tras_cycles + hammer_duration - 1);
+		else {
+			remaining_cycs = add_op_with_delay(
+				prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0, 0);
+			remaining_cycs = add_op_with_delay(
+				prog, SMC_SLEEP(ceil(hammer_duration / 4.0f)), 0, tras_cycles - 5);
 		}
+
+		remaining_cycs = add_op_with_delay(prog, SMC_PRE(reg_bank_addr, 0, 0), 0, 0);
+		remaining_cycs = 0;
+		prog.add_inst(SMC_ADDI(reg_cur_hammers, 1, reg_cur_hammers));
+		prog.add_branch(Program::BL, reg_cur_hammers, reg_num_hammers, lbl_rh);
 	}
 
 	reg_alloc.free_SMC_REG(reg_row_addr);
