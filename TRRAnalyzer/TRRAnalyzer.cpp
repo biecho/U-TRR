@@ -445,41 +445,32 @@ std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 	return rowGroups;
 }
 
-std::vector<RowGroup> pickRandomRowGroups(vector<RowGroup> &rowGroups, const uint numRowGroups)
+std::vector<RowGroup> pickRandomRowGroups(const std::vector<RowGroup> &rowGroups,
+					  const uint numRowGroups, const uint maxAllowedRetTimeDiff)
 {
-	std::vector<RowGroup> pickedRowGroups;
+	// Make a copy of rowGroups to avoid side effects
+	std::vector<RowGroup> sortedRowGroups = rowGroups;
 
-	for (uint i = 0; i < numRowGroups; i++) {
-		auto it = rowGroups.begin();
+	// Sort rowGroups by ret_ms
+	std::sort(sortedRowGroups.begin(), sortedRowGroups.end(),
+		  [](const RowGroup &a, const RowGroup &b) { return a.ret_ms < b.ret_ms; });
 
-		if (it == rowGroups.end()) {
-			std::cerr << RED_TXT
-				  << "ERROR: The weaks rows file does not contain a sufficient "
-				     "number of hammerable weak rows"
-				  << NORMAL_TXT << std::endl;
-			std::cerr << RED_TXT << "Needed: " << numRowGroups
-				  << ", found: " << pickedRowGroups.size() << NORMAL_TXT
-				  << std::endl;
-			exit(-1);
+	// Use sliding window to find the subset
+	for (size_t i = 0; i <= sortedRowGroups.size() - numRowGroups; i++) {
+		uint minRetMs = sortedRowGroups[i].ret_ms;
+		uint maxRetMs = sortedRowGroups[i + numRowGroups - 1].ret_ms;
+
+		if (maxRetMs - minRetMs <= maxAllowedRetTimeDiff) {
+			return { sortedRowGroups.begin() +
+					 static_cast<std::vector<RowGroup>::difference_type>(i),
+				 sortedRowGroups.begin() +
+					 static_cast<std::vector<RowGroup>::difference_type>(
+						 i + numRowGroups) };
 		}
-
-		if (!pickedRowGroups.empty()) {
-			// remove picked rows that have different retention times
-			for (auto rowGroup = pickedRowGroups.begin();
-			     rowGroup != pickedRowGroups.end(); rowGroup++) {
-				if (std::abs((int)rowGroup->ret_ms - (int)it->ret_ms) >
-				    TRR_ALLOWED_RET_TIME_DIFF) {
-					pickedRowGroups.erase(rowGroup--);
-					i--;
-				}
-			}
-		}
-
-		pickedRowGroups.push_back(*it);
-		rowGroups.erase(it);
 	}
 
-	return pickedRowGroups;
+	// If no valid subset is found, return an empty vector or handle the case appropriately
+	return {};
 }
 
 void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
@@ -1903,12 +1894,13 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 
 void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGroup> &allRowGroups,
 					  vector<RowGroup> &row_groups, const uint num_row_groups,
-					  const bool cascaded_hammer, const std::string& row_layout)
+					  const bool cascaded_hammer, const std::string &row_layout)
 {
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
-		row_groups = pickRandomRowGroups(allRowGroups, num_row_groups);
+		row_groups = pickRandomRowGroups(allRowGroups, num_row_groups,
+						 TRR_ALLOWED_RET_TIME_DIFF);
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
 		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
@@ -1945,7 +1937,7 @@ void get_row_groups_by_index(const vector<RowGroup> &all_row_groups, vector<RowG
 
 	// If all indices are valid, proceed to adjust and copy the row groups
 	for (auto index : indices) {
-		const auto& rowGroup = all_row_groups[index];
+		const auto &rowGroup = all_row_groups[index];
 		auto adjustedRowGroup = adjustRowGroup(rowGroup, row_layout);
 		row_groups.push_back(adjustedRowGroup);
 	}
