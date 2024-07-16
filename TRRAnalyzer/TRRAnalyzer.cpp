@@ -445,7 +445,15 @@ std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 	return rowGroups;
 }
 
-std::vector<RowGroup> pickRandomRowGroups(const std::vector<RowGroup> &rowGroups,
+/**
+ * Selects a subset of row groups such that the difference in retention times between the groups is within a specified limit.
+ *
+ * @param rowGroups A vector of RowGroup objects from which to select.
+ * @param numRowGroups The number of row groups to select.
+ * @param maxAllowedRetTimeDiff The maximum allowed difference in retention times between any two selected row groups.
+ * @return A vector of selected RowGroup objects meeting the retention time constraint.
+ */
+std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(const std::vector<RowGroup> &rowGroups,
 					  const uint numRowGroups, const uint maxAllowedRetTimeDiff)
 {
 	// Make a copy of rowGroups to avoid side effects
@@ -1899,8 +1907,8 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGr
 	while (row_groups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
-		row_groups = pickRandomRowGroups(allRowGroups, num_row_groups,
-						 TRR_ALLOWED_RET_TIME_DIFF);
+		row_groups = selectRowGroupsWithRetTimeConstraint(allRowGroups, num_row_groups,
+								  TRR_ALLOWED_RET_TIME_DIFF);
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
 		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
