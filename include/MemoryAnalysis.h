@@ -14,3 +14,6 @@
 std::vector<uint> detectBitflips(const char *data, size_t sizeBytes,
 				 const std::bitset<512> &expectedPattern);
 
+std::vector<uint> detectSpecificBitflips(const char *data, size_t sizeBytes,
+					 const std::bitset<512> &expectedPattern,
+					 const std::vector<uint> &bitflipLocations);

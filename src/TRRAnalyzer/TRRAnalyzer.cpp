@@ -75,60 +75,6 @@ JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
-// returns a vector of bit positions that experienced bitflips
-vector<uint> collect_bitflips(const char *read_data, const bitset<512> &input_data_pattern,
-			      const vector<uint> &bitflips_loc)
-{
-	vector<uint> bitflips;
-	bitset<512> read_data_bitset;
-
-	auto *iread_data = (uint32_t *)read_data;
-
-	// check for bitflips in each cache line
-	if (bitflips_loc.empty()) {
-		// check for bitflips in each cache line
-		for (int cl = 0; cl < ROW_SIZE_BYTES / 64; cl++) {
-			read_data_bitset.reset();
-			for (int i = 0; i < 512 / 32; i++) {
-				bitset<512> tmp_bitset = iread_data[cl * (512 / 32) + i];
-
-				read_data_bitset |= (tmp_bitset << i * 32);
-			}
-
-			// compare and print errors
-			bitset<512> error_mask = read_data_bitset ^ input_data_pattern;
-
-			if (error_mask.any()) {
-				// there is at least one bitflip in this cache line
-				for (uint i = 0; i < error_mask.size(); i++) {
-					if (error_mask.test(i)) {
-						bitflips.push_back(cl * CACHE_LINE_BITS + i);
-					}
-				}
-			}
-		}
-	} else {
-		for (auto bitflipLocation : bitflips_loc) {
-			uint cl = floor(bitflipLocation / CACHE_LINE_BITS);
-			uint offset = bitflipLocation % CACHE_LINE_BITS;
-
-			read_data_bitset.reset();
-			for (int i = 0; i < 512 / 32; i++) {
-				bitset<512> tmp_bitset = iread_data[cl * (512 / 32) + i];
-				read_data_bitset |= (tmp_bitset << i * 32);
-			}
-
-			bitset<512> error_mask = read_data_bitset ^ input_data_pattern;
-
-			if (error_mask.test(offset)) {
-				bitflips.push_back(bitflipLocation);
-			}
-		}
-	}
-
-	return bitflips;
-}
-
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 		 const uint row_batch_size, const vector<RowData> &rows_data)
 {
@@ -1645,16 +1591,17 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 		uint row_it = 0;
 		for (auto &hrs : hammerable_rows) {
 			for (uint vict_ind = 0; vict_ind < hrs.victim_ids.size(); vict_ind++) {
-				bitflips = collect_bitflips(buf + row_it * ROW_SIZE_BYTES,
-							    hrs.data_pattern,
-							    hrs.vict_bitflip_locs[vict_ind]);
+				bitflips = detectSpecificBitflips(buf + row_it * ROW_SIZE_BYTES,
+								  ROW_SIZE_BYTES, hrs.data_pattern,
+								  hrs.vict_bitflip_locs[vict_ind]);
 				row_it++;
 
 				loc_bitflips.push_back(bitflips);
 			}
 
 			for (uint uni_ind = 0; uni_ind < hrs.uni_ids.size(); uni_ind++) {
-				bitflips = collect_bitflips(buf + row_it * ROW_SIZE_BYTES,
+				bitflips = detectSpecificBitflips(buf + row_it * ROW_SIZE_BYTES,
+								  ROW_SIZE_BYTES,
 							    hrs.data_pattern,
 							    hrs.uni_bitflip_locs[uni_ind]);
 				row_it++;
@@ -2431,8 +2378,9 @@ int main(int argc, char **argv)
 				for (auto &hr : hrs) {
 					for (uint vict_ind = 0; vict_ind < hr.victim_ids.size();
 					     vict_ind++) {
-						bitflips = collect_bitflips(
+						bitflips = detectSpecificBitflips(
 							buf + row_it * ROW_SIZE_BYTES,
+							ROW_SIZE_BYTES,
 							hr.data_pattern,
 							hr.vict_bitflip_locs[vict_ind]);
 						row_it++;
@@ -2452,8 +2400,9 @@ int main(int argc, char **argv)
 					aggr_data_pattern.flip();
 					for (uint uni_ind = 0; uni_ind < hr.uni_ids.size();
 					     uni_ind++) {
-						bitflips = collect_bitflips(
+						bitflips = detectSpecificBitflips(
 							buf + row_it * ROW_SIZE_BYTES,
+							ROW_SIZE_BYTES,
 							aggr_data_pattern,
 							hr.uni_bitflip_locs[uni_ind]);
 						row_it++;
