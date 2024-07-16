@@ -12,11 +12,14 @@
 #include <bitset>
 #include <chrono>
 #include <stdexcept>
+#include <iostream>
+#include <random>
 
 #include "RowGroup.h"
 #include "Dram.h"
 #include "MemoryAnalysis.h"
 #include "Colors.h"
+#include "BitUtils.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -40,9 +43,6 @@ const uint TRR_WEAK_DUMMY_DIST = 5000; // the minimum row distance between weak 
 				       // rows
 const uint TRR_ALLOWED_RET_TIME_DIFF = 64;
 
-const uint default_data_patterns[] = { 0x0,	   0xFFFFFFFF, 0x00000000, 0x55555555,
-				       0xAAAAAAAA, 0xAAAAAAAA, 0x55555555 };
-
 vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
 
 typedef struct HammerableRowSet {
@@ -52,8 +52,8 @@ typedef struct HammerableRowSet {
 	std::vector<uint> aggr_ids;
 	std::vector<uint> uni_ids;
 	bitset<512> data_pattern;
-	uint bank_id;
-	uint ret_ms;
+	uint bank_id{};
+	uint ret_ms{};
 } HammerableRowSet;
 
 struct RowInitializationData {
@@ -123,16 +123,18 @@ void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
 }
 
-void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg_bank_addr,
-		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
-		       bool cascaded_hammer, uint hammer_duration);
+void hammerAggressors(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg_bank_addr,
+		      const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
+		      bool cascaded_hammer, uint hammer_duration);
 
-void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc,
-			     const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
-			     const vector<uint> &num_hammers, const uint hammer_duration);
-void hammerAggressorInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
-				const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
-				const vector<uint> &num_hammers, const uint hammer_duration);
+void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg_bank_addr,
+			     const vector<uint> &rows_to_hammer, const vector<uint> &num_hammers,
+			     uint hammer_duration);
+
+void hammerAggressorsInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
+				 SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+				 const vector<uint> &num_hammers, uint hammer_duration);
+
 RowInitializationData createRowInitializationData(const HammerableRowSet &hr,
 						  const bool init_aggrs_first,
 						  const bool ignore_aggrs,
@@ -204,13 +206,13 @@ void init_HRS_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	init_row_data(prog1, regAlloc, reg_bank_addr, reg_num_cols, rowInitData);
 }
 
-void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
-		       const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
-		       const bool cascaded_hammer, const uint hammer_duration)
+void hammerAggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
+		      const vector<uint> &rows_to_hammer, const std::vector<uint> &num_hammers,
+		      const bool cascaded_hammer, const uint hammer_duration)
 {
 	if (!cascaded_hammer) {
-		hammerAggressorInterleaved(prog, reg_alloc, reg_bank_addr, rows_to_hammer,
-					   num_hammers, hammer_duration);
+		hammerAggressorsInterleaved(prog, reg_alloc, reg_bank_addr, rows_to_hammer,
+					    num_hammers, hammer_duration);
 
 	} else {
 		hammerAggressorsCascade(prog, reg_alloc, reg_bank_addr, rows_to_hammer, num_hammers,
@@ -229,9 +231,9 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
  * hammer counts are exhausted. The function ensures each row is hammered the correct number
  * of times as efficiently as possible by adjusting the operations based on remaining hammer counts.
  */
-void hammerAggressorInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
-				const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
-				const vector<uint> &num_hammers, const uint hammer_duration)
+void hammerAggressorsInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
+				 const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+				 const vector<uint> &num_hammers, const uint hammer_duration)
 {
 	if (rows_to_hammer.empty())
 		return; // nothing to hammer
@@ -392,8 +394,8 @@ void init_HRS_data(SoftMCPlatform &platform, const std::vector<HammerableRowSet>
 		std::vector<uint> rows_to_hammer = std::vector<uint>{ 0 };
 		std::vector<uint> bank0_hammers_per_ref =
 			std::vector<uint>{ num_pre_init_bank0_hammers };
-		hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, rows_to_hammer,
-				  bank0_hammers_per_ref, true, 0);
+		hammerAggressors(*prog, *reg_alloc, reg_bank_addr, rows_to_hammer,
+				 bank0_hammers_per_ref, true, 0);
 	}
 
 	if (pre_init_nops > 0) {
@@ -458,54 +460,15 @@ void read_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
 }
 
-bitset<512> setup_data_pattern(const uint data_pattern_type)
-{
-	bitset<512> data_pattern;
-	switch (data_pattern_type) {
-	case 0: { // random
-		// GENERATING RANDOM TEST DATA
-		uint32_t rand_int;
 
-		for (int pos = 0; pos < 16; pos++) {
-			data_pattern <<= 32;
-			rand_int = (rand() << 16) | (0x0000FFFF & rand());
-			// cout << "generated random 32-bit: " << hex << rand_int << dec << endl;
-			data_pattern |= rand_int;
-		}
-		break;
-	}
-	case 1:
-	case 2: // 1's for victim rows, 0's for aggressor rows
-	case 3:
-	case 4:
-	case 5:
-	case 6: {
-		for (int pos = 0; pos < 16; pos++) {
-			data_pattern <<= 32;
-			data_pattern |= default_data_patterns[data_pattern_type];
-		}
-
-		break;
-	}
-	default: {
-		std::cerr << RED_TXT
-			  << "ERROR: Undefined input data pattern mode: " << data_pattern_type
-			  << NORMAL_TXT << std::endl;
-		exit(-1);
-	}
-	}
-
-	return data_pattern;
-}
-
-HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_layout)
+HammerableRowSet toHammerableRowSet(const RowGroup &rowGroup, const std::string row_layout)
 {
 	HammerableRowSet hr;
 
-	hr.bank_id = wrs.bank_id;
-	hr.ret_ms = wrs.ret_ms;
+	hr.bank_id = rowGroup.bank_id;
+	hr.ret_ms = rowGroup.ret_ms;
 
-	hr.victim_ids.reserve(wrs.rows.size());
+	hr.victim_ids.reserve(rowGroup.rows.size());
 
 	uint wrs_ind = 0;
 	uint vict_to_aggr_dist = 1;
@@ -513,8 +476,8 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 		switch (row_type) {
 		case 'r':
 		case 'R':
-			hr.victim_ids.push_back(wrs.rows[wrs_ind].row_id);
-			hr.vict_bitflip_locs.push_back(wrs.rows[wrs_ind++].bitflip_locs);
+			hr.victim_ids.push_back(rowGroup.rows[wrs_ind].row_id);
+			hr.vict_bitflip_locs.push_back(rowGroup.rows[wrs_ind++].bitflip_locs);
 			vict_to_aggr_dist = 1;
 			break;
 		case 'a':
@@ -522,23 +485,23 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 			hr.aggr_ids.push_back(to_logical_row_id(
 				to_physical_row_id(hr.victim_ids.back()) + vict_to_aggr_dist));
 
-			if (hr.aggr_ids.back() == wrs.rows[wrs_ind].row_id) // advance wrs_ind
-									    // if the
-									    // corresponding
-									    // row is profiled
-									    // as a retention
-									    // weak row but we
-									    // would like to
-									    // use it as an
-									    // aggressor row
+			if (hr.aggr_ids.back() == rowGroup.rows[wrs_ind].row_id) // advance wrs_ind
+										 // if the
+										 // corresponding
+										 // row is profiled
+										 // as a retention
+										 // weak row but we
+										 // would like to
+										 // use it as an
+										 // aggressor row
 				wrs_ind++;
 
 			vict_to_aggr_dist = 1;
 			break;
 		case 'u':
 		case 'U':
-			hr.uni_ids.push_back(wrs.rows[wrs_ind].row_id);
-			hr.uni_bitflip_locs.push_back(wrs.rows[wrs_ind++].bitflip_locs);
+			hr.uni_ids.push_back(rowGroup.rows[wrs_ind].row_id);
+			hr.uni_bitflip_locs.push_back(rowGroup.rows[wrs_ind++].bitflip_locs);
 			vict_to_aggr_dist = 1;
 			break;
 		case '-':
@@ -554,7 +517,7 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 		}
 	}
 
-	hr.data_pattern = setup_data_pattern(wrs.data_pattern_type);
+	hr.data_pattern = generateDataPattern(rowGroup.data_pattern_type);
 	// for aggressor rows we use the bit inverse of victim's data pattern
 
 	return hr;
@@ -609,8 +572,8 @@ bool is_hammerable(SoftMCPlatform &platform, const RowGroup &wrs, const std::str
 	/*************************/
 
 	vector<uint> hammers(hr.aggr_ids.size(), TRR_CHECK_HAMMERS);
-	hammer_aggressors(p_testRH, reg_alloc, reg_bank_addr, hr.aggr_ids, hammers, cascaded_hammer,
-			  0);
+	hammerAggressors(p_testRH, reg_alloc, reg_bank_addr, hr.aggr_ids, hammers, cascaded_hammer,
+			 0);
 
 	/********************************/
 	/*** issue DRAM READ commands ***/
@@ -998,8 +961,8 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 				hammers_per_round.begin() + weak_rows_to_hammer.size(),
 				hammers_per_round.end());
 
-		hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
-				  dummy_hammers_per_round, cascaded_hammer, 0);
+		hammerAggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
+				 dummy_hammers_per_round, cascaded_hammer, 0);
 	}
 
 	if (total_hammers_per_ref > 0) {
@@ -1015,8 +978,8 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 				auto dummy_hammers_per_round = std::vector<uint32_t>(
 					hammers_per_round.begin(),
 					hammers_per_round.begin() + dummy_aggrs.size());
-				hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
-						  dummy_hammers_per_round, cascaded_hammer, 0);
+				hammerAggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
+						 dummy_hammers_per_round, cascaded_hammer, 0);
 			}
 
 			if (!skip_hammering_aggr) {
@@ -1030,9 +993,9 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 						hammers_per_round.end() :
 						hammers_per_round.begin() +
 							weak_rows_to_hammer.size());
-				hammer_aggressors(*prog, *reg_alloc, reg_bank_addr,
-						  weak_rows_to_hammer, weak_rows_hammers_per_ref,
-						  cascaded_hammer, hammer_duration);
+				hammerAggressors(*prog, *reg_alloc, reg_bank_addr,
+						 weak_rows_to_hammer, weak_rows_hammers_per_ref,
+						 cascaded_hammer, hammer_duration);
 			}
 
 			if (!hammer_dummies_first && !hammer_dummies_independently &&
@@ -1041,13 +1004,13 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 				auto dummy_hammers_per_round = std::vector<uint32_t>(
 					hammers_per_round.begin() + weak_rows_to_hammer.size(),
 					hammers_per_round.end());
-				hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
-						  dummy_hammers_per_round, cascaded_hammer, 0);
+				hammerAggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
+						 dummy_hammers_per_round, cascaded_hammer, 0);
 			}
 
 		} else {
-			hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, all_rows_to_hammer,
-					  new_hammers_per_ref, cascaded_hammer, hammer_duration);
+			hammerAggressors(*prog, *reg_alloc, reg_bank_addr, all_rows_to_hammer,
+					 new_hammers_per_ref, cascaded_hammer, hammer_duration);
 		}
 	}
 
@@ -1065,16 +1028,16 @@ void hammer_hrs(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammer
 				hammers_per_round.begin() + weak_rows_to_hammer.size(),
 				hammers_per_round.end());
 
-		hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
-				  dummy_hammers_per_round, cascaded_hammer, 0);
+		hammerAggressors(*prog, *reg_alloc, reg_bank_addr, dummy_aggrs,
+				 dummy_hammers_per_round, cascaded_hammer, 0);
 	}
 
 	if (num_bank0_hammers > 0) {
 		prog->add_inst(SMC_LI(0, reg_bank_addr));
 		all_rows_to_hammer = std::vector<uint>{ 0 };
 		std::vector<uint> bank0_hammers_per_ref = std::vector<uint>{ num_bank0_hammers };
-		hammer_aggressors(*prog, *reg_alloc, reg_bank_addr, all_rows_to_hammer,
-				  bank0_hammers_per_ref, cascaded_hammer, hammer_duration);
+		hammerAggressors(*prog, *reg_alloc, reg_bank_addr, all_rows_to_hammer,
+				 bank0_hammers_per_ref, cascaded_hammer, hammer_duration);
 	}
 
 	// 4) issue a REF
