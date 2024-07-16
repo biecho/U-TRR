@@ -15,6 +15,8 @@
 #include <chrono>
 #include <stdexcept>
 
+#include "RowGroup.h"
+
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 using namespace boost::program_options;
@@ -84,26 +86,6 @@ const uint default_data_patterns[] = { 0x0,	   0xFFFFFFFF, 0x00000000, 0x5555555
 
 vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
 
-typedef struct RowData {
-	bitset<512> input_data_pattern;
-	uint pattern_id;
-	string label;
-} RowData;
-
-typedef struct WeakRow {
-	uint row_id;
-	std::vector<uint> bitflip_locs;
-
-	WeakRow()
-	{
-	}
-	WeakRow(uint _row_id, vector<uint> _bitflip_locs)
-		: row_id(_row_id)
-		, bitflip_locs(_bitflip_locs)
-	{
-	}
-} WeakRow;
-
 typedef struct HammerableRowSet {
 	std::vector<uint> victim_ids;
 	std::vector<std::vector<uint> > vict_bitflip_locs;
@@ -115,60 +97,7 @@ typedef struct HammerableRowSet {
 	uint ret_ms;
 } HammerableRowSet;
 
-JS_OBJECT_EXTERNAL(WeakRow, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
-
-typedef struct RowGroup {
-	std::vector<WeakRow> row_group;
-	uint bank_id;
-	uint ret_ms;
-	uint index_in_file;
-	uint data_pattern_type;
-	uint rowdata_ind;
-	RowGroup()
-	{
-	}
-	RowGroup(std::vector<WeakRow> _weak_rows, uint _bank_id, uint _ret_ms,
-		 uint _data_pattern_type, uint _rowdata_ind)
-		: row_group(_weak_rows)
-		, bank_id(_bank_id)
-		, ret_ms(_ret_ms)
-		, data_pattern_type(_data_pattern_type)
-		, rowdata_ind(_rowdata_ind)
-	{
-	}
-	bool contains_rows_in(const RowGroup &other)
-	{
-		for (auto &wr : row_group) {
-			auto it = std::find_if(other.row_group.begin(), other.row_group.end(),
-					       [&](const WeakRow &w) {
-						       return w.row_id == wr.row_id;
-					       });
-
-			if (it != other.row_group.end())
-				return true;
-		}
-
-		return false;
-	}
-	std::string rows_as_str()
-	{
-		std::string ret = "(";
-
-		for (auto &wr : row_group) {
-			ret = ret + to_string(wr.row_id) + ", ";
-		}
-
-		// remove ', ' at the end
-		if (ret.size() > 1) {
-			ret = ret.substr(0, ret.size() - 2);
-		}
-
-		ret = ret + ")";
-
-		return ret;
-	}
-} RowGroup;
-
+JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
 JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(row_group), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
@@ -862,7 +791,7 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 	hr.bank_id = wrs.bank_id;
 	hr.ret_ms = wrs.ret_ms;
 
-	hr.victim_ids.reserve(wrs.row_group.size());
+	hr.victim_ids.reserve(wrs.rows.size());
 
 	uint wrs_ind = 0;
 	uint vict_to_aggr_dist = 1;
@@ -870,8 +799,8 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 		switch (row_type) {
 		case 'r':
 		case 'R':
-			hr.victim_ids.push_back(wrs.row_group[wrs_ind].row_id);
-			hr.vict_bitflip_locs.push_back(wrs.row_group[wrs_ind++].bitflip_locs);
+			hr.victim_ids.push_back(wrs.rows[wrs_ind].row_id);
+			hr.vict_bitflip_locs.push_back(wrs.rows[wrs_ind++].bitflip_locs);
 			vict_to_aggr_dist = 1;
 			break;
 		case 'a':
@@ -879,7 +808,7 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 			hr.aggr_ids.push_back(to_logical_row_id(
 				to_physical_row_id(hr.victim_ids.back()) + vict_to_aggr_dist));
 
-			if (hr.aggr_ids.back() == wrs.row_group[wrs_ind].row_id) // advance wrs_ind
+			if (hr.aggr_ids.back() == wrs.rows[wrs_ind].row_id) // advance wrs_ind
 										 // if the
 										 // corresponding
 										 // row is profiled
@@ -894,8 +823,8 @@ HammerableRowSet toHammerableRowSet(const RowGroup &wrs, const std::string row_l
 			break;
 		case 'u':
 		case 'U':
-			hr.uni_ids.push_back(wrs.row_group[wrs_ind].row_id);
-			hr.uni_bitflip_locs.push_back(wrs.row_group[wrs_ind++].bitflip_locs);
+			hr.uni_ids.push_back(wrs.rows[wrs_ind].row_id);
+			hr.uni_bitflip_locs.push_back(wrs.rows[wrs_ind++].bitflip_locs);
 			vict_to_aggr_dist = 1;
 			break;
 		case '-':
@@ -1003,7 +932,7 @@ void pick_dummy_aggressors(vector<uint> &dummy_aggrs, const uint dummy_aggrs_ban
 {
 	uint cur_dummy = TRR_DUMMY_ROW_DIST % NUM_ROWS;
 	if (weak_row_sets.size() != 0)
-		cur_dummy = (weak_row_sets[0].row_group[0].row_id + TRR_WEAK_DUMMY_DIST +
+		cur_dummy = (weak_row_sets[0].rows[0].row_id + TRR_WEAK_DUMMY_DIST +
 			     dummy_ids_offset) %
 			    NUM_ROWS;
 
@@ -1022,7 +951,7 @@ void pick_dummy_aggressors(vector<uint> &dummy_aggrs, const uint dummy_aggrs_ban
 		// check if there is a victim close to cur_dummy
 		if (dummy_aggrs_bank == weak_row_sets[0].bank_id) {
 			for (auto &wrs : weak_row_sets) {
-				for (auto &wr : wrs.row_group) {
+				for (auto &wr : wrs.rows) {
 					if (std::abs((int)cur_dummy - (int)wr.row_id) <
 					    TRR_WEAK_DUMMY_DIST) {
 						cur_dummy = (cur_dummy + TRR_WEAK_DUMMY_DIST) %
@@ -1832,14 +1761,14 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 	bool match = false;
 
 	std::vector<uint> wrs_dists;
-	wrs_dists.reserve(new_wrs.row_group.size());
+	wrs_dists.reserve(new_wrs.rows.size());
 	while (true) {
 		// finding the row distance between the rows in rowGroup
 		wrs_dists.clear();
 
-		uint first_victim_id = to_physical_row_id(new_wrs.row_group[0].row_id);
-		for (uint i = 1; i < new_wrs.row_group.size(); i++)
-			wrs_dists.push_back(to_physical_row_id(new_wrs.row_group[i].row_id) -
+		uint first_victim_id = to_physical_row_id(new_wrs.rows[0].row_id);
+		for (uint i = 1; i < new_wrs.rows.size(); i++)
+			wrs_dists.push_back(to_physical_row_id(new_wrs.rows[i].row_id) -
 					    first_victim_id);
 		// for RRRRR, wrs_dists would be 1, 2, 3, 4
 		// RARAR should match it, which would have dist vector 2 4
@@ -1856,7 +1785,7 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 		if (match)
 			break;
 
-		new_wrs.row_group.erase(new_wrs.row_group.begin()); // remove the first row id and
+		new_wrs.rows.erase(new_wrs.rows.begin()); // remove the first row id and
 								    // check if the remaining match
 	}
 
@@ -1866,9 +1795,9 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 	if (match) { // we have a match
 		// build a new row id vector that includes only the matching rows
 
-		std::vector<WeakRow> matching_weak_rows;
+		std::vector<Row> matching_weak_rows;
 		matching_weak_rows.reserve(wrs_type_dists.size());
-		matching_weak_rows.push_back(new_wrs.row_group[0]);
+		matching_weak_rows.push_back(new_wrs.rows[0]);
 
 		uint new_wrs_it = 0;
 		for (auto d : wrs_type_dists) { // evict the rows that do not match the dist vector
@@ -1876,13 +1805,13 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 				assert(wrs_dists[new_wrs_it] <= d);
 				if (wrs_dists[new_wrs_it] == d) { // found a match
 					matching_weak_rows.push_back(
-						new_wrs.row_group[new_wrs_it + 1]);
+						new_wrs.rows[new_wrs_it + 1]);
 					break;
 				}
 			}
 		}
 
-		new_wrs.row_group = matching_weak_rows;
+		new_wrs.rows = matching_weak_rows;
 
 		return new_wrs;
 	}
@@ -1954,7 +1883,7 @@ bool check_dummy_vs_rg_collision(const std::vector<uint> &dummy_aggrs,
 {
 	for (uint dummy : dummy_aggrs) {
 		for (const auto &wrs : vec_wrs) {
-			for (const auto &weak_row : wrs.row_group) {
+			for (const auto &weak_row : wrs.rows) {
 				if (dummy == weak_row.row_id)
 					return true;
 			}
@@ -2363,7 +2292,7 @@ int main(int argc, char **argv)
 		// this is to pick different dummy than those we picked to hammer while hammering
 		// the actual aggressor rows
 		for (uint dummy_row_id : arg_dummy_aggr_ids)
-			cur_dummies.row_group.emplace_back(dummy_row_id, std::vector<uint>());
+			cur_dummies.rows.emplace_back(dummy_row_id, std::vector<uint>());
 		cur_rgs_and_dummies.push_back(cur_dummies);
 
 		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank, num_dummy_after_init,

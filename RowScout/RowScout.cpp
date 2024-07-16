@@ -4,6 +4,7 @@
 #include "platform.h"
 #include "prog.h"
 #include "softmc_utils.h"
+#include "RowGroup.h"
 
 #include <algorithm>
 #include <array>
@@ -72,74 +73,7 @@ float RETPROF_RETTIME_MULT_H = 1.2f;
 
 vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
 
-typedef struct RowData {
-	bitset<512> input_data_pattern;
-	uint pattern_id;
-	string label;
-} RowData;
-
-typedef struct WeakRow {
-	uint row_id;
-	std::vector<uint> bitflip_locs;
-	WeakRow(uint _row_id, vector<uint> _bitflip_locs)
-		: row_id(_row_id)
-		, bitflip_locs(_bitflip_locs)
-	{
-	}
-} Row;
-
 JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
-// JS_MEMBER(data_pattern_type));
-
-typedef struct RowGroup {
-	std::vector<Row> rows;
-	uint bank_id;
-	uint ret_ms;
-	uint data_pattern_type;
-	uint rowdata_ind;
-	RowGroup(std::vector<Row> _rows, uint _bank_id, uint _ret_ms, uint _data_pattern_type,
-		 uint _rowdata_ind)
-		: rows(_rows)
-		, bank_id(_bank_id)
-		, ret_ms(_ret_ms)
-		, data_pattern_type(_data_pattern_type)
-		, rowdata_ind(_rowdata_ind)
-	{
-	}
-
-	bool hasCommonRowWith(const RowGroup &other) const
-	{
-		for (const auto &current_row : rows) {
-			for (const auto &other_row : other.rows) {
-				if (current_row.row_id == other_row.row_id) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	std::string toString()
-	{
-		std::ostringstream ss;
-		ss << "(";
-
-		if (!rows.empty()) {
-			// Append all but the last row ID followed by ", "
-			for (size_t i = 0; i < rows.size() - 1; ++i) {
-				ss << rows[i].row_id << ", ";
-			}
-			// Append the last row ID without ", "
-			ss << rows.back().row_id;
-		}
-
-		ss << ")";
-		return ss.str();
-	}
-
-} RowGroup;
-
 JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
 		   JS_MEMBER(data_pattern_type));
 
@@ -1031,14 +965,16 @@ int main(int argc, char **argv)
 		// Output the current profiling status with the retention time
 		std::cout << "Profiling with " << retention_ms << " ms retention time" << std::endl;
 
-		// Determine the maximum possible size of a row batch based on current retention time and data size
+		// Determine the maximum possible size of a row batch based on current retention
+		// time and data size
 		uint max_row_batch_size = determineRowBatchSize(retention_ms, rows_data.size());
 		// Calculate the size of the region of rows we're targeting
 		uint target_region_size = row_range[1] - row_range[0] + 1;
 		// Select the smaller size to ensure we do not exceed boundaries
 		uint row_batch_size = min(max_row_batch_size, target_region_size);
 
-		// Ensure that the buffer is large enough to hold the batch data; resize if necessary
+		// Ensure that the buffer is large enough to hold the batch data; resize if
+		// necessary
 		if (buf_size < row_batch_size * ROW_SIZE) {
 			buf_size = row_batch_size * ROW_SIZE;
 			delete[] buf;
@@ -1056,7 +992,8 @@ int main(int argc, char **argv)
 				       bitflip_history, retentionCheckIndices);
 
 			// Filter the candidate row groups to find viable ones
-			candidateRowGroups = filterCandidateRowGroups(rowGroups, candidateRowGroups);
+			candidateRowGroups =
+				filterCandidateRowGroups(rowGroups, candidateRowGroups);
 
 			// Further analyze the filtered candidate row groups
 			if (!candidateRowGroups.empty()) {
