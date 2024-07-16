@@ -78,30 +78,33 @@ vector<RowGroup> filterCandidateRowGroups(const vector<RowGroup> &rowGroups,
 	return filteredCandidates;
 }
 
-// returns a vector of bit positions that experienced bitflips
-vector<uint> collect_bitflips(const char *read_data, const RowData &rh_row)
+/**
+ * @brief Detects bitflips in the read data by comparing it against the input data pattern.
+ *
+ * @param data Pointer to the read data.
+ * @param expectedPattern The expected data pattern.
+ * @return A vector of positions where bitflips were detected.
+ */
+vector<uint> detectBitflips(const char *data, size_t sizeBytes, const bitset<512> &expectedPattern)
 {
-	vector<uint> bitflips;
 	bitset<512> read_data_bitset;
+	vector<uint> bitflips;
 
-	uint32_t *iread_data = (uint32_t *)read_data;
+	const int bitsPerByte = 8;
+	const int cacheLineBytes = 64;
 
 	// check for bitflips in each cache line
-	for (int cl = 0; cl < ROW_SIZE / 64; cl++) {
+	for (int cl = 0; cl < sizeBytes / cacheLineBytes; cl++) {
 		read_data_bitset.reset();
-		for (int i = 0; i < 512 / 32; i++) {
-			bitset<512> tmp_bitset = iread_data[cl * (512 / 32) + i];
 
-			read_data_bitset |= (tmp_bitset << i * 32);
+		for (int i = 0; i < cacheLineBytes; i++) {
+			auto tmp_bitset = data[cl * cacheLineBytes + i];
+			read_data_bitset |= (tmp_bitset << i * bitsPerByte);
 		}
 
-		// compare and print errors
-		bitset<512> error_mask = read_data_bitset ^ rh_row.input_data_pattern;
-
+		auto error_mask = read_data_bitset ^ expectedPattern;
 		if (error_mask.any()) {
-			// there is at least one bitflip in this cache line
-
-			for (uint i = 0; i < error_mask.size(); i++) {
+			for (int i = 0; i < error_mask.size(); i++) {
 				if (error_mask.test(i)) {
 					bitflips.push_back(cl * CACHE_LINE_BITS + i);
 				}
@@ -505,7 +508,8 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 	Program readProg;
 	readFromDRAM(readProg, target_bank, first_row_id, row_batch_size);
 	platform.execute(readProg);
-	platform.receiveData(buf, ROW_SIZE * row_batch_size); // reading all RH_NUM_ROWS at once
+	platform.receiveData(buf, ROW_SIZE_BYTES * row_batch_size); // reading all RH_NUM_ROWS at
+								    // once
 
 	// Check errors
 	// go over physical row IDs in order
@@ -517,9 +521,9 @@ void test_retention(SoftMCPlatform &platform, const uint retention_ms, const uin
 		       "ERROR: The used Logical to Physical row address mapping results in logical "
 		       "address out of bounds of the row_batch size. Consider revising the code.");
 
-		char *readData = buf + (log_row_id - first_row_id) * ROW_SIZE;
+		char *readData = buf + (log_row_id - first_row_id) * ROW_SIZE_BYTES;
 		const auto &row = rows_data[(log_row_id - first_row_id) % rows_data.size()];
-		auto bitflips = collect_bitflips(readData, row);
+		auto bitflips = detectBitflips(readData, ROW_SIZE_BYTES, row.input_data_pattern);
 
 		ensureSequentialRowProcessing(bitflip_history, phys_row_id);
 
@@ -634,12 +638,12 @@ bool check_retention_failure_repeatability(SoftMCPlatform &platform, const uint 
 	Program readProg;
 	readFromDRAM(readProg, target_bank, rowGroup);
 	platform.execute(readProg);
-	platform.receiveData(buf, ROW_SIZE * rowGroup.rows.size());
+	platform.receiveData(buf, ROW_SIZE_BYTES * rowGroup.rows.size());
 
 	// Analyze each row for bit flips and apply filters based on the filter_out_failures flag
 	for (int i = 0; i < rowGroup.rows.size(); i++) {
-		auto bitflips =
-			collect_bitflips(buf + i * ROW_SIZE, rows_data[rowGroup.rowdata_ind]);
+		auto bitflips = detectBitflips(buf + i * ROW_SIZE_BYTES, ROW_SIZE_BYTES,
+					       rows_data[rowGroup.rowdata_ind].input_data_pattern);
 
 		vector<uint> &locations = rowGroup.rows[i].bitflip_locs;
 		if (filter_out_failures) {
@@ -667,7 +671,7 @@ void analyze_weaks(SoftMCPlatform &platform, const vector<RowData> &rows_data,
 	for (auto &candidateRowGroup : candidateRowGroups) {
 		std::cout << BLUE_TXT << "Checking retention time consistency of row(s) "
 			  << candidateRowGroup.toString() << NORMAL_TXT << std::endl;
-		char buf[ROW_SIZE * candidateRowGroup.rows.size()];
+		char buf[ROW_SIZE_BYTES * candidateRowGroup.rows.size()];
 
 		// Setting up a progress bar
 		progresscpp::ProgressBar progress_bar(RETPROF_NUM_ITS, 70, '#', '-');
@@ -950,8 +954,8 @@ int main(int argc, char **argv)
 
 		// Ensure that the buffer is large enough to hold the batch data; resize if
 		// necessary
-		if (buf_size < row_batch_size * ROW_SIZE) {
-			buf_size = row_batch_size * ROW_SIZE;
+		if (buf_size < row_batch_size * ROW_SIZE_BYTES) {
+			buf_size = row_batch_size * ROW_SIZE_BYTES;
 			delete[] buf;
 			buf = new char[buf_size];
 		}

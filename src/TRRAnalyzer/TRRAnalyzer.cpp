@@ -75,18 +75,18 @@ JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_
 		   JS_MEMBER(data_pattern_type));
 
 // returns a vector of bit positions that experienced bitflips
-void collect_bitflips(vector<uint> &bitflips, const char *read_data,
-		      const bitset<512> &input_data_pattern, const vector<uint> bitflips_loc)
+vector<uint> collect_bitflips(const char *read_data, const bitset<512> &input_data_pattern,
+			      const vector<uint> &bitflips_loc)
 {
+	vector<uint> bitflips;
 	bitset<512> read_data_bitset;
-	uint bit_loc;
 
-	uint32_t *iread_data = (uint32_t *)read_data;
+	auto *iread_data = (uint32_t *)read_data;
 
 	// check for bitflips in each cache line
-	if (bitflips_loc.size() == 0) {
+	if (bitflips_loc.empty()) {
 		// check for bitflips in each cache line
-		for (int cl = 0; cl < ROW_SIZE / 64; cl++) {
+		for (int cl = 0; cl < ROW_SIZE_BYTES / 64; cl++) {
 			read_data_bitset.reset();
 			for (int i = 0; i < 512 / 32; i++) {
 				bitset<512> tmp_bitset = iread_data[cl * (512 / 32) + i];
@@ -101,8 +101,7 @@ void collect_bitflips(vector<uint> &bitflips, const char *read_data,
 				// there is at least one bitflip in this cache line
 				for (uint i = 0; i < error_mask.size(); i++) {
 					if (error_mask.test(i)) {
-						bit_loc = cl * CACHE_LINE_BITS + i;
-						bitflips.push_back(bit_loc);
+						bitflips.push_back(cl * CACHE_LINE_BITS + i);
 					}
 				}
 			}
@@ -125,6 +124,8 @@ void collect_bitflips(vector<uint> &bitflips, const char *read_data,
 			}
 		}
 	}
+
+	return bitflips;
 }
 
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
@@ -346,7 +347,6 @@ std::vector<RowGroup> parseAllRowGroups(string &rowScoutFile)
 
 	return rowGroups;
 }
-
 
 void init_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG reg_bank_addr,
 		   const SMC_REG reg_num_cols, const vector<uint> &rows_to_init,
@@ -846,17 +846,17 @@ bool is_hammerable(SoftMCPlatform &platform, const RowGroup &wrs, const std::str
 	/*********************************************/
 	/*** read PCIe data and check for bitflips ***/
 	/*********************************************/
-	char buf[ROW_SIZE * hr.victim_ids.size()];
-	platform.receiveData(buf, ROW_SIZE * hr.victim_ids.size());
+	char buf[ROW_SIZE_BYTES * hr.victim_ids.size()];
+	platform.receiveData(buf, ROW_SIZE_BYTES * hr.victim_ids.size());
 	vector<uint> bitflips;
 
 	// we expect all victim rows to be hammerable
 	bool all_victims_have_bitflips = true;
 	for (uint i = 0; i < hr.victim_ids.size(); i++) {
-		bitflips.clear();
-		collect_bitflips(bitflips, buf + ROW_SIZE * i, hr.data_pattern, vector<uint>{});
+		bitflips =
+			collect_bitflips(buf + ROW_SIZE_BYTES * i, hr.data_pattern, vector<uint>{});
 
-		if (bitflips.size() == 0) {
+		if (bitflips.empty()) {
 			all_victims_have_bitflips = false;
 			std::cout << RED_TXT << "No RH bitflips found in row " << hr.victim_ids[i]
 				  << NORMAL_TXT << std::endl;
@@ -1636,7 +1636,7 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 	vector<vector<uint> > loc_bitflips;
 	if (!use_single_softmc_prog) {
 		// get data from PCIe
-		ulong read_data_size = ROW_SIZE * total_victim_rows;
+		ulong read_data_size = ROW_SIZE_BYTES * total_victim_rows;
 		char buf[read_data_size * 2];
 		platform.receiveData(buf, read_data_size);
 
@@ -1646,18 +1646,18 @@ analyzeTRR(SoftMCPlatform &platform, const vector<HammerableRowSet> &hammerable_
 		uint row_it = 0;
 		for (auto &hrs : hammerable_rows) {
 			for (uint vict_ind = 0; vict_ind < hrs.victim_ids.size(); vict_ind++) {
-				bitflips.clear();
-				collect_bitflips(bitflips, buf + row_it * ROW_SIZE,
-						 hrs.data_pattern, hrs.vict_bitflip_locs[vict_ind]);
+				bitflips = collect_bitflips(buf + row_it * ROW_SIZE_BYTES,
+							    hrs.data_pattern,
+							    hrs.vict_bitflip_locs[vict_ind]);
 				row_it++;
 
 				loc_bitflips.push_back(bitflips);
 			}
 
 			for (uint uni_ind = 0; uni_ind < hrs.uni_ids.size(); uni_ind++) {
-				bitflips.clear();
-				collect_bitflips(bitflips, buf + row_it * ROW_SIZE,
-						 hrs.data_pattern, hrs.uni_bitflip_locs[uni_ind]);
+				bitflips = collect_bitflips(buf + row_it * ROW_SIZE_BYTES,
+							    hrs.data_pattern,
+							    hrs.uni_bitflip_locs[uni_ind]);
 				row_it++;
 
 				loc_bitflips.push_back(bitflips);
@@ -2418,7 +2418,7 @@ int main(int argc, char **argv)
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
 		// receive PCIe data iteration by iteration and keep the out_file format the same
 
-		ulong read_data_size = ROW_SIZE * total_victims;
+		ulong read_data_size = ROW_SIZE_BYTES * total_victims;
 		char *buf = new char[read_data_size];
 		vector<uint> bitflips;
 
@@ -2432,10 +2432,10 @@ int main(int argc, char **argv)
 				for (auto &hr : hrs) {
 					for (uint vict_ind = 0; vict_ind < hr.victim_ids.size();
 					     vict_ind++) {
-						bitflips.clear();
-						collect_bitflips(bitflips, buf + row_it * ROW_SIZE,
-								 hr.data_pattern,
-								 hr.vict_bitflip_locs[vict_ind]);
+						bitflips = collect_bitflips(
+							buf + row_it * ROW_SIZE_BYTES,
+							hr.data_pattern,
+							hr.vict_bitflip_locs[vict_ind]);
 						row_it++;
 
 						out_file << "Victim row " << hr.victim_ids[vict_ind]
@@ -2453,10 +2453,10 @@ int main(int argc, char **argv)
 					aggr_data_pattern.flip();
 					for (uint uni_ind = 0; uni_ind < hr.uni_ids.size();
 					     uni_ind++) {
-						bitflips.clear();
-						collect_bitflips(bitflips, buf + row_it * ROW_SIZE,
-								 aggr_data_pattern,
-								 hr.uni_bitflip_locs[uni_ind]);
+						bitflips = collect_bitflips(
+							buf + row_it * ROW_SIZE_BYTES,
+							aggr_data_pattern,
+							hr.uni_bitflip_locs[uni_ind]);
 						row_it++;
 
 						out_file << "Victim row(U) " << hr.uni_ids[uni_ind]

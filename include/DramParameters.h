@@ -8,7 +8,7 @@
 int NUM_BANKS = 16; // this is the total number of banks in the chip
 int NUM_BANK_GROUPS = 4;
 int NUM_ROWS = 32768;
-int ROW_SIZE = 8192;
+int ROW_SIZE_BYTES = 8192;
 int NUM_COLS_PER_ROW = 128;
 /******/
 
