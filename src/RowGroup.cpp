@@ -2,7 +2,7 @@
 #include "RowGroup.h"
 #include <boost/filesystem.hpp>
 
-std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup> &rowGroups,
+std::vector<RowGroup> selectRowGroupsWithMaxRetTimeDiff(std::vector<RowGroup> &rowGroups,
 							   uint numRowGroups,
 							   uint maxAllowedRetTimeDiff)
 {

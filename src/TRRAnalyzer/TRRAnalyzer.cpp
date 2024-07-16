@@ -1494,29 +1494,29 @@ RowGroup adjustRowGroup(const RowGroup &rowGroup, const std::string &row_layout)
 }
 
 void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGroup> &allRowGroups,
-					  vector<RowGroup> &row_groups, const uint num_row_groups,
+					  vector<RowGroup> &rowGroups, const uint num_row_groups,
 					  const bool cascaded_hammer, const std::string &row_layout)
 {
-	while (row_groups.size() != num_row_groups) {
+	while (rowGroups.size() != num_row_groups) {
 		// 1) Pick (in order) 'num_weaks' weak rows from 'file_weak_rows' that have the same
 		// retention time.
-		row_groups = selectRowGroupsWithRetTimeConstraint(allRowGroups, num_row_groups,
-								  TRR_ALLOWED_RET_TIME_DIFF);
+		rowGroups = selectRowGroupsWithMaxRetTimeDiff(allRowGroups, num_row_groups,
+							      TRR_ALLOWED_RET_TIME_DIFF);
 
 		// 2) test whether RowHammer bitflips can be induced on the weak rows
-		for (auto it = row_groups.begin(); it != row_groups.end(); it++) {
-			if (!is_hammerable(platform, *it, row_layout, cascaded_hammer)) {
+		for (auto rowGroup = rowGroups.begin(); rowGroup != rowGroups.end(); rowGroup++) {
+			if (!is_hammerable(platform, *rowGroup, row_layout, cascaded_hammer)) {
 				std::cout << RED_TXT << "Candidate victim row set "
-					  << it->rows_as_str() << " is not hammerable" << NORMAL_TXT
-					  << std::endl;
-				row_groups.erase(it--);
+					  << rowGroup->rows_as_str() << " is not hammerable"
+					  << NORMAL_TXT << std::endl;
+				rowGroups.erase(rowGroup--);
 				continue;
 			}
 
-			std::cout << GREEN_TXT << "Candidate victim row " << it->rows_as_str()
+			std::cout << GREEN_TXT << "Candidate victim row " << rowGroup->rows_as_str()
 				  << " is hammerable" << NORMAL_TXT << std::endl;
 
-			*it = adjustRowGroup(*it, row_layout);
+			*rowGroup = adjustRowGroup(*rowGroup, row_layout);
 		}
 	}
 }

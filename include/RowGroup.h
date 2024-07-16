@@ -114,7 +114,7 @@ JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_
  * selected row groups.
  * @return A vector of selected RowGroup objects meeting the retention time constraint.
  */
-std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup> &rowGroups,
+std::vector<RowGroup> selectRowGroupsWithMaxRetTimeDiff(std::vector<RowGroup> &rowGroups,
 							   uint numRowGroups,
 							   uint maxAllowedRetTimeDiff);
 
