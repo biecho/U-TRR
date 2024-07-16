@@ -15,7 +15,7 @@
 
 #define CACHE_LINE_BITS 512
 
-typedef uint32_t SMC_REG;
+typedef int SMC_REG;
 
 struct OutOfSoftMCRegsException : public std::exception {
    const char * what () const throw () {

@@ -130,6 +130,9 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, SMC_REG reg
 void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc,
 			     const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
 			     const vector<uint> &num_hammers, const uint hammer_duration);
+void hammerAggressorInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
+				const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+				const vector<uint> &num_hammers, const uint hammer_duration);
 RowInitializationData createRowInitializationData(const HammerableRowSet &hr,
 						  const bool init_aggrs_first,
 						  const bool ignore_aggrs,
@@ -206,92 +209,103 @@ void hammer_aggressors(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_R
 		       const bool cascaded_hammer, const uint hammer_duration)
 {
 	if (!cascaded_hammer) {
-		if (rows_to_hammer.empty())
-			return; // nothing to hammer
+		hammerAggressorInterleaved(prog, reg_alloc, reg_bank_addr, rows_to_hammer,
+					   num_hammers, hammer_duration);
 
-		uint initial_free_regs = reg_alloc.num_free_regs();
-		uint remaining_cycs = 0;
-
-		SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
-		SMC_REG reg_cur_hammers = reg_alloc.allocate_SMC_REG();
-		SMC_REG reg_num_hammers = reg_alloc.allocate_SMC_REG();
-
-		// it is complicated to efficiently hammer rows different number of times while
-		// activating them one after another We implement the following algorithm:
-		// 1. If there is a non-zero element in hammer_per_ref, hammer the rows
-		// corresponding to those elements using the smallest non-zero hammer_per_ref value.
-		// If all hammer_per_ref elements are zero, exit
-		// 2. decrement all non-zero elements of hammer_per_ref vector by the smallest value
-		// 3. go back to 1
-
-		auto hammers_per_round = num_hammers;
-
-		while (true) {
-			auto min_non_zero =
-				std::min_element(hammers_per_round.begin(), hammers_per_round.end(),
-						 [](const uint &a, const uint &b) {
-							 return ((a > 0) && (a < b)) || (b == 0);
-						 });
-
-			if (min_non_zero == hammers_per_round.end() || *min_non_zero == 0) {
-				break;
-			}
-
-			uint min_elem = *min_non_zero;
-
-			// perform hammering
-			prog.add_inst(SMC_LI(min_elem, reg_num_hammers));
-			prog.add_inst(SMC_LI(0, reg_cur_hammers));
-			std::string lbl_rh = createSMCLabel("ROWHAMMERING");
-			prog.add_label(lbl_rh);
-			for (int ind_row = 0; ind_row < rows_to_hammer.size(); ind_row++) {
-				if (hammers_per_round[ind_row] == 0) // do not anymore hammer a row
-								     // that has 0 remaining hammers
-					continue;
-
-				int row_id = rows_to_hammer[ind_row];
-				prog.add_inst(SMC_LI(row_id, reg_row_addr));
-
-				if (hammer_duration < 20)
-					remaining_cycs = add_op_with_delay(
-						prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0,
-						tras_cycles + hammer_duration - 1);
-				else {
-					remaining_cycs = add_op_with_delay(
-						prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0,
-						hammer_duration % 4);
-					remaining_cycs = add_op_with_delay(
-						prog, SMC_SLEEP(std::floor(hammer_duration / 4.0f)),
-						remaining_cycs, tras_cycles - 1);
-				}
-
-				remaining_cycs = add_op_with_delay(
-					prog, SMC_PRE(reg_bank_addr, 0, 0), 0, trp_cycles - 5);
-			}
-
-			prog.add_inst(SMC_ADDI(reg_cur_hammers, 1, reg_cur_hammers));
-			prog.add_branch(Program::BR_TYPE::BL, reg_cur_hammers, reg_num_hammers,
-					lbl_rh);
-
-			// this subtracts min_elem from every non-zero element
-			std::for_each(hammers_per_round.begin(), hammers_per_round.end(),
-				      [&](uint &a) {
-					      if (a > 0)
-						      a -= min_elem;
-				      });
-		}
-
-		reg_alloc.free_SMC_REG(reg_row_addr);
-		reg_alloc.free_SMC_REG(reg_cur_hammers);
-		reg_alloc.free_SMC_REG(reg_num_hammers);
-
-		assert(reg_alloc.num_free_regs() == initial_free_regs);
 	} else {
 		hammerAggressorsCascade(prog, reg_alloc, reg_bank_addr, rows_to_hammer, num_hammers,
 					hammer_duration);
 	}
 }
 
+void hammerAggressorInterleaved(Program &prog, SoftMCRegAllocator &reg_alloc,
+				const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
+				const vector<uint> &num_hammers, const uint hammer_duration)
+{
+	if (rows_to_hammer.empty())
+		return; // nothing to hammer
+
+	uint initial_free_regs = reg_alloc.num_free_regs();
+	uint remaining_cycs = 0;
+
+	SMC_REG reg_row_addr = reg_alloc.allocate_SMC_REG();
+	SMC_REG reg_cur_hammers = reg_alloc.allocate_SMC_REG();
+	SMC_REG reg_num_hammers = reg_alloc.allocate_SMC_REG();
+
+	// it is complicated to efficiently hammer rows different number of times while
+	// activating them one after another We implement the following algorithm:
+	// 1. If there is a non-zero element in hammer_per_ref, hammer the rows
+	// corresponding to those elements using the smallest non-zero hammer_per_ref value.
+	// If all hammer_per_ref elements are zero, exit
+	// 2. decrement all non-zero elements of hammer_per_ref vector by the smallest value
+	// 3. go back to 1
+
+	auto hammers_per_round = num_hammers;
+
+	while (true) {
+		auto min_non_zero = min_element(hammers_per_round.begin(), hammers_per_round.end(),
+						[](const uint &a, const uint &b) {
+							return ((a > 0) && (a < b)) || (b == 0);
+						});
+
+		if (min_non_zero == hammers_per_round.end() || *min_non_zero == 0) {
+			break;
+		}
+
+		uint min_elem = *min_non_zero;
+
+		// perform hammering
+		prog.add_inst(SMC_LI(min_elem, reg_num_hammers));
+		prog.add_inst(SMC_LI(0, reg_cur_hammers));
+		string lbl_rh = createSMCLabel("ROWHAMMERING");
+		prog.add_label(lbl_rh);
+		for (int ind_row = 0; ind_row < rows_to_hammer.size(); ind_row++) {
+			if (hammers_per_round[ind_row] == 0) // do not anymore hammer a row
+							     // that has 0 remaining hammers
+				continue;
+
+			int row_id = rows_to_hammer[ind_row];
+			prog.add_inst(SMC_LI(row_id, reg_row_addr));
+
+			if (hammer_duration < 20)
+				remaining_cycs = add_op_with_delay(
+					prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0,
+					tras_cycles + hammer_duration - 1);
+			else {
+				remaining_cycs = add_op_with_delay(
+					prog, SMC_ACT(reg_bank_addr, 0, reg_row_addr, 0), 0,
+					hammer_duration % 4);
+				remaining_cycs = add_op_with_delay(
+					prog, SMC_SLEEP(floor(hammer_duration / 4.0f)),
+					remaining_cycs, tras_cycles - 1);
+			}
+
+			remaining_cycs = add_op_with_delay(prog, SMC_PRE(reg_bank_addr, 0, 0), 0,
+							   trp_cycles - 5);
+		}
+
+		prog.add_inst(SMC_ADDI(reg_cur_hammers, 1, reg_cur_hammers));
+		prog.add_branch(Program::BL, reg_cur_hammers, reg_num_hammers, lbl_rh);
+
+		// this subtracts min_elem from every non-zero element
+		for_each(hammers_per_round.begin(), hammers_per_round.end(), [&](uint &a) {
+			if (a > 0)
+				a -= min_elem;
+		});
+	}
+
+	reg_alloc.free_SMC_REG(reg_row_addr);
+	reg_alloc.free_SMC_REG(reg_cur_hammers);
+	reg_alloc.free_SMC_REG(reg_num_hammers);
+
+	assert(reg_alloc.num_free_regs() == initial_free_regs);
+}
+
+/**
+ * Simulates a Row Hammer attack on specified rows within a memory bank. This function performs
+ * consecutive hammering operations on each row, based on the provided counts, without interleaving
+ * between rows.
+ */
 void hammerAggressorsCascade(Program &prog, SoftMCRegAllocator &reg_alloc,
 			     const SMC_REG reg_bank_addr, const vector<uint> &rows_to_hammer,
 			     const vector<uint> &num_hammers, const uint hammer_duration)
