@@ -10,12 +10,13 @@ std::vector<uint> detectBitflips(const char *data, size_t sizeBytes,
 	const int bitsPerByte = 8;
 	const int cacheLineBytes = 64;
 	const int cacheLineBits = cacheLineBytes * bitsPerByte;
+	const size_t numCacheLines = sizeBytes / cacheLineBytes;
 
 	std::bitset<512> bitset;
 	std::vector<uint> bitflips;
 
 	// check for bitflips in each cache line
-	for (int cl = 0; cl < sizeBytes / cacheLineBytes; cl++) {
+	for (int cl = 0; cl < numCacheLines; cl++) {
 		bitset.reset();
 
 		for (int i = 0; i < cacheLineBytes; i++) {
