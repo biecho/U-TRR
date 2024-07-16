@@ -70,10 +70,6 @@ typedef struct HammerableRowSet {
 	uint ret_ms;
 } HammerableRowSet;
 
-JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
-JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
-		   JS_MEMBER(data_pattern_type));
-
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 		 const uint row_batch_size, const vector<RowData> &rows_data)
 {

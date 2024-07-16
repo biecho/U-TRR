@@ -31,6 +31,8 @@ using namespace std;
 #define BASR 1
 #define RASR 2
 
+vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
+
 #define NUM_SOFTMC_REGS 16
 
 #define RED_TXT "\033[31m"
@@ -46,39 +48,6 @@ uint RETPROF_NUM_ITS = 100; // When a candidate row group is found, the profiler
 float RETPROF_RETTIME_STEP = 1.0f; // defines by how much to increase the target retention time if
 				   // sufficient row groups not found in the previous iteration
 float RETPROF_RETTIME_MULT_H = 1.2f;
-
-vector<uint32_t> reserved_regs{ CASR, BASR, RASR };
-
-JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
-JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
-		   JS_MEMBER(data_pattern_type));
-
-vector<RowGroup> filterNonOverlappingRowGroups(const vector<RowGroup> &rowGroups,
-					  const vector<RowGroup> &candidateRowGroups)
-{
-	vector<RowGroup> filteredCandidates;
-
-	// Check each candidate row group
-	for (const auto &candidate : candidateRowGroups) {
-		bool hasCommon = false;
-
-		// Compare against each existing row group
-		for (const auto &rowGroup : rowGroups) {
-			if (rowGroup.hasCommonRowWith(candidate)) {
-				hasCommon = true;
-				break; // No need to check further if a common row is found
-			}
-		}
-
-		// Add to filtered list if no common rows were found
-		if (!hasCommon) {
-			filteredCandidates.push_back(candidate);
-		}
-	}
-
-	return filteredCandidates;
-}
-
 
 void writeToDRAM(Program &program, const uint target_bank, const uint start_row,
 		 const uint row_batch_size, const vector<RowData> &rows_data)
@@ -937,7 +906,7 @@ int main(int argc, char **argv)
 
 			// Filter the candidate row groups to find viable ones
 			candidateRowGroups =
-				filterNonOverlappingRowGroups(rowGroups, candidateRowGroups);
+				filterForExclusiveRowGroups(rowGroups, candidateRowGroups);
 
 			// Further analyze the filtered candidate row groups
 			if (!candidateRowGroups.empty()) {

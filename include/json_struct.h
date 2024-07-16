@@ -128,6 +128,7 @@
 #endif
 #ifdef JS_STD_UNORDERED_MAP
 #include <unordered_map>
+#include <limits>
 #endif
 
 #ifndef JS_STD_OPTIONAL

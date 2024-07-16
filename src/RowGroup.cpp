@@ -27,3 +27,29 @@ std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup>
 
 	return {};
 }
+
+vector<RowGroup> filterForExclusiveRowGroups(const vector<RowGroup> &rowGroups,
+					     const vector<RowGroup> &candidateRowGroups)
+{
+	vector<RowGroup> filteredCandidates;
+
+	// Iterate through each candidate row group to determine exclusivity
+	for (const auto &candidate : candidateRowGroups) {
+		bool hasCommon = false;
+
+		// Check each existing row group for common rows
+		for (const auto &rowGroup : rowGroups) {
+			if (rowGroup.hasCommonRowWith(candidate)) {
+				hasCommon = true;
+				break; // Stop checking as we've found a common row
+			}
+		}
+
+		// Add the candidate to the result list if no common rows are found
+		if (!hasCommon) {
+			filteredCandidates.push_back(candidate);
+		}
+	}
+
+	return filteredCandidates;
+}

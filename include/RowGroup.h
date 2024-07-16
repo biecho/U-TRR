@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include "json_struct.h"
+
 using namespace std;
 
 typedef struct RowData {
@@ -97,6 +99,11 @@ typedef struct RowGroup {
 	}
 } RowGroup;
 
+JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
+JS_OBJECT_EXTERNAL(RowGroup, JS_MEMBER(rows), JS_MEMBER(bank_id), JS_MEMBER(ret_ms),
+		   JS_MEMBER(data_pattern_type));
+
+
 /**
  * @brief Selects a subset of row groups such that the difference in retention times between the
  * groups is within a specified limit.
@@ -110,3 +117,18 @@ typedef struct RowGroup {
 std::vector<RowGroup> selectRowGroupsWithRetTimeConstraint(std::vector<RowGroup> &rowGroups,
 							   uint numRowGroups,
 							   uint maxAllowedRetTimeDiff);
+
+/**
+ * Filters out row groups from a list of candidates that have any overlapping rows
+ * with an existing set of row groups.
+ *
+ * @param rowGroups A const reference to a vector of existing RowGroup objects
+ *                  that should be compared against the candidate row groups.
+ * @param candidateRowGroups A const reference to a vector of candidate RowGroup
+ *                           objects to be filtered based on the absence of common
+ *                           rows with the existing row groups.
+ * @return A vector of RowGroup objects that are found to have no overlapping rows
+ *         with any row group in the existing set.
+ */
+vector<RowGroup> filterForExclusiveRowGroups(const vector<RowGroup> &rowGroups,
+					       const vector<RowGroup> &candidateRowGroups);
