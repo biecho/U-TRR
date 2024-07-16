@@ -24,12 +24,12 @@ file(GLOB_RECURSE DRAM_BENDER_SOURCES
 )
 
 # Add your executable
-add_executable(RowScoutExecutable RowScout/RowScout.cpp ${DRAM_BENDER_SOURCES})
+add_executable(RowScoutExecutable src/RowScout/RowScout.cpp ${DRAM_BENDER_SOURCES})
 # Link Boost and other libraries to your executable
 target_link_libraries(RowScoutExecutable ${Boost_LIBRARIES} pthread)
 
 # Add your executable
-add_executable(TRRAnalyzerExecutable TRRAnalyzer/TRRAnalyzer.cpp ${DRAM_BENDER_SOURCES}
-        TRRAnalyzer/RowGroupSelector.cpp)
+add_executable(TRRAnalyzerExecutable src/TRRAnalyzer/TRRAnalyzer.cpp ${DRAM_BENDER_SOURCES}
+        src/RowGroupSelector.cpp)
 # Link Boost and other libraries to your executable
 target_link_libraries(TRRAnalyzerExecutable ${Boost_LIBRARIES} pthread)

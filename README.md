@@ -111,7 +111,7 @@ Then, from the `TRRAnalyzer` directory, run:
 The script will create the following two line plots (one plot for each victim
 row) as an .html file:
 
-![plot](TRRAnalyzer/scripts/sample_plots/finding_trr-induced_refs_5k-hammers.png)
+![plot](src/TRRAnalyzer/scripts/sample_plots/finding_trr-induced_refs_5k-hammers.png)
 
 The x-axis shows different iteration numbers. The y-axis shows whether the victim row is refreshed by a TRR-induced (or regular) refresh operation (when `y=1`) or not (when `y=0`). From the plot, we observe that both victim rows get refreshed generally by the 18th REF command in a row.
 
@@ -121,7 +121,7 @@ To analyze the effect of hammer count on TRR's aggressor row tracking mechanism,
 
     $ ./TRRAnalyzer --row_scout_file ../RowScout/sample.R-R-R --row_layout RARAR --num_rounds 1 --num_iterations 100 --hammers_per_round 5000 1 --refs_per_round 1
 
-![plot](TRRAnalyzer/scripts/sample_plots/analyzing_aggr_tracking.png)
+![plot](src/TRRAnalyzer/scripts/sample_plots/analyzing_aggr_tracking.png)
 
 THe plot shows that the victims adjacent to the leftmost aggressor row are typically the targets of the TRR-induced refresh operations. This suggests that the TRR mechanism prioritizes refreshing the neighbors of rows with higher activation count.
 
