@@ -1645,7 +1645,6 @@ int main(int argc, char **argv)
 	bool hammer_dummies_independently = false;
 	uint num_refs_per_round = 1;
 	uint pre_ref_delay = 0;
-	float hammer_cycle_time = 0.0f; // as nanosec
 	bool append_output = false;
 
 	bool only_pick_rgs = false;
@@ -1664,25 +1663,18 @@ int main(int argc, char **argv)
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
 		// aggressor row related args
-		("hammer_duration", value(&hammer_duration)->default_value(hammer_duration),
-		 "Specifies the number of additional cycles to wait in row active state "
-		 "while hammering (tRAS + hammer_duration). The default is 0, i.e., tRAS)")(
-			"hammer_cycle_time",
-			value(&hammer_cycle_time)->default_value(hammer_cycle_time),
-			"Specifies the time interval between two consecutive activations (the "
-			"default and the minimum is tRAS + tRP).")(
-			"init_aggrs_first", bool_switch(&init_aggrs_first),
-			"When specified, the aggressor rows are initialized with a data pattern "
-			"before the victim rows.")("first_it_aggr_init_and_hammer",
-						   bool_switch(&first_it_aggr_init_and_hammer),
-						   "When specified, the aggressor rows are "
-						   "initialized and hammered only during the first "
-						   "iteration.")("init_only_victims",
-								 bool_switch(&init_only_victims),
-								 "When specified, only the victim "
-								 "rows are initialized at the "
-								 "beginning of an iteration but "
-								 "not the aggressors.")
+		("init_aggrs_first", bool_switch(&init_aggrs_first),
+		 "When specified, the aggressor rows are initialized with a data pattern "
+		 "before the victim rows.")("first_it_aggr_init_and_hammer",
+					    bool_switch(&first_it_aggr_init_and_hammer),
+					    "When specified, the aggressor rows are "
+					    "initialized and hammered only during the first "
+					    "iteration.")("init_only_victims",
+							  bool_switch(&init_only_victims),
+							  "When specified, only the victim "
+							  "rows are initialized at the "
+							  "beginning of an iteration but "
+							  "not the aggressors.")
 
 		// refresh related args
 		("refs_per_round", value(&num_refs_per_round)->default_value(num_refs_per_round),
@@ -1947,16 +1939,15 @@ int main(int argc, char **argv)
 	if (total_aggrs > 0)
 		adjust_hammers_per_ref(hammers_per_round, hrs[0].aggr_ids.size(),
 				       config.hammer.hammer_rgs_individually,
-				       config.hammer.skip_hammering_aggr,
-				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids,
-				       dummy_hammers_per_round, hammer_dummies_first);
+				       config.hammer.skip_hammering_aggr, row_groups.size(),
+				       total_aggrs, arg_dummy_aggr_ids, dummy_hammers_per_round,
+				       hammer_dummies_first);
 
 	if (!hammers_before_wait.empty())
 		adjust_hammers_per_ref(hammers_before_wait, hrs[0].aggr_ids.size(),
 				       config.hammer.hammer_rgs_individually,
-				       config.hammer.skip_hammering_aggr,
-				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids, 0,
-				       hammer_dummies_first);
+				       config.hammer.skip_hammering_aggr, row_groups.size(),
+				       total_aggrs, arg_dummy_aggr_ids, 0, hammer_dummies_first);
 
 	vector<uint> total_bitflips(total_victims, 0);
 
@@ -2008,9 +1999,9 @@ int main(int argc, char **argv)
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 				dummy_hammers_per_round, hammer_dummies_first,
 				hammer_dummies_independently, config.hammer.cascaded_hammer,
-				hammers_per_round, hammer_cycle_time, hammer_duration,
-				config.experiment.num_rounds, config.hammer.skip_hammering_aggr, refs_after_init,
-				after_init_dummies, init_aggrs_first, ignore_aggrs,
+				hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
+				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
+				refs_after_init, after_init_dummies, init_aggrs_first, ignore_aggrs,
 				init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				num_refs_per_round, pre_ref_delay, hammers_before_wait,
@@ -2100,15 +2091,15 @@ int main(int argc, char **argv)
 		auto num_bitflips = analyzeTRR(
 			platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 			dummy_hammers_per_round, hammer_dummies_first, hammer_dummies_independently,
-			config.hammer.cascaded_hammer, hammers_per_round, hammer_cycle_time,
+			config.hammer.cascaded_hammer, hammers_per_round,
+			config.hammer.hammer_cycle_time,
 			hammer_duration, config.experiment.num_rounds,
-			config.hammer.skip_hammering_aggr,
-			refs_after_init, after_init_dummies, init_aggrs_first, false,
-			init_only_victims, false, first_it_aggr_init_and_hammer,
-			refs_after_init_no_dummy_hammer, num_refs_per_round, pre_ref_delay,
-			hammers_before_wait, init_to_hammerbw_delay, num_bank0_hammers,
-			num_pre_init_bank0_hammers, pre_init_nops, true,
-			config.experiment.num_iterations, true);
+			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies,
+			init_aggrs_first, false, init_only_victims, false,
+			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
+			num_refs_per_round, pre_ref_delay, hammers_before_wait,
+			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
+			pre_init_nops, true, config.experiment.num_iterations, true);
 
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
 		// receive PCIe data iteration by iteration and keep the out_file format the same
