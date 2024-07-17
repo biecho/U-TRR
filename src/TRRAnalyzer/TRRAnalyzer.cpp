@@ -1631,18 +1631,14 @@ int main(int argc, char **argv)
 	bool first_it_aggr_init_and_hammer = config.hammer.first_it_aggr_init_and_hammer;
 
 	uint num_dummy_aggressors = config.dummy.num_dummy_aggressors;
+	int dummy_aggrs_bank = config.dummy.dummy_aggrs_bank;
+	vector<uint> arg_dummy_aggr_ids = config.dummy.dummy_aggr_ids;
 
 	float init_to_hammerbw_delay = 0.0f;
 	bool first_it_dummy_hammer = false;
 	uint num_bank0_hammers = 0;
 	uint num_pre_init_bank0_hammers = 0;
 	uint pre_init_nops = 0;
-	int dummy_aggrs_bank = -1;
-	uint dummy_hammers_per_round = 1;
-	uint dummy_ids_offset = 0;
-	vector<uint> arg_dummy_aggr_ids;
-	bool hammer_dummies_first = false;
-	bool hammer_dummies_independently = false;
 	uint pre_ref_delay = 0;
 	bool append_output = false;
 
@@ -1650,7 +1646,6 @@ int main(int argc, char **argv)
 
 	uint num_dummy_after_init = 0;
 	bool refs_after_init_no_dummy_hammer = false;
-
 
 	bool use_single_softmc_prog = false;
 	bool location_out = false;
@@ -1660,38 +1655,12 @@ int main(int argc, char **argv)
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
 		// dummy row related args
-		(
-			"dummy_aggrs_bank",
-			value(&dummy_aggrs_bank)->default_value(dummy_aggrs_bank),
-			"Specifies the bank address from which dummy rows should be selected. If "
-			"not specified, TRR Analyzer picks dummy rows from the same bank as the "
-			"row groups.")("dummy_aggr_ids",
-				       value<vector<uint> >(&arg_dummy_aggr_ids)->multitoken(),
-				       "Specifies the exact dummy row addresses to hammer in each "
-				       "round instead of letting TRR Analyzer select the dummy "
-				       "rows.")(
-			"dummy_hammers_per_round",
-			value(&dummy_hammers_per_round)->default_value(dummy_hammers_per_round),
-			"Specifies how many times each dummy row to hammer in each round.")(
-			"dummy_ids_offset",
-			value(&dummy_ids_offset)->default_value(dummy_ids_offset),
-			"Specifies a value to offset every dummy row address. Useful when there is "
-			"a need to pick different dummy rows in different runs of TRR Analyzer.")(
-			"hammer_dummies_first", bool_switch(&hammer_dummies_first),
-			"When specified, the dummy rows are hammered before hammering the actual "
-			"aggressor rows.")("hammer_dummies_independently",
-					   bool_switch(&hammer_dummies_independently),
-					   "When specified, the dummy rows are hammered after the "
-					   "aggressor rows to matter whether --cascaded is used or "
-					   "not. The dummy rows are simply treated as a separate "
-					   "group of rows to hammer after hammering the aggressor "
-					   "rows in interleaved or cascaded way.")(
-			"num_dummy_after_init",
-			value(&num_dummy_after_init)->default_value(num_dummy_after_init),
-			"Specifies the number of dummy rows to hammer right after initializing the "
-			"victim and aggressor rows. These dummy row hammers happen concurrently "
-			"with --refs_after_init refreshes. Each dummy is hammered as much as "
-			"possible based on the refresh interval and --refs_after_init.")(
+		("num_dummy_after_init",
+		 value(&num_dummy_after_init)->default_value(num_dummy_after_init),
+		 "Specifies the number of dummy rows to hammer right after initializing the "
+		 "victim and aggressor rows. These dummy row hammers happen concurrently "
+		 "with --refs_after_init refreshes. Each dummy is hammered as much as "
+		 "possible based on the refresh interval and --refs_after_init.")(
 			"refs_after_init_no_dummy_hammer",
 			bool_switch(&refs_after_init_no_dummy_hammer),
 			"When specified, after hammering dummy rows as specified by "
@@ -1854,7 +1823,7 @@ int main(int argc, char **argv)
 		uint max_dummy_aggrs = num_dummy_aggressors;
 		arg_dummy_aggr_ids.reserve(max_dummy_aggrs);
 		pick_dummy_aggressors(arg_dummy_aggr_ids, dummy_aggrs_bank, max_dummy_aggrs,
-				      row_groups, dummy_ids_offset);
+				      row_groups, config.dummy.dummy_ids_offset);
 
 	} else if (!arg_dummy_aggr_ids.empty() &&
 		   (dummy_aggrs_bank == row_groups[0].bank_id)) { // check whether the user provided
@@ -1889,7 +1858,7 @@ int main(int argc, char **argv)
 		cur_rgs_and_dummies.push_back(cur_dummies);
 
 		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank, num_dummy_after_init,
-				      cur_rgs_and_dummies, dummy_ids_offset);
+				      cur_rgs_and_dummies, config.dummy.dummy_ids_offset);
 	}
 
 	// 4) Perform TRR analysis for each position of the weak rows among the dummy rows
@@ -1912,14 +1881,16 @@ int main(int argc, char **argv)
 		adjust_hammers_per_ref(hammers_per_round, hrs[0].aggr_ids.size(),
 				       config.hammer.hammer_rgs_individually,
 				       config.hammer.skip_hammering_aggr, row_groups.size(),
-				       total_aggrs, arg_dummy_aggr_ids, dummy_hammers_per_round,
-				       hammer_dummies_first);
+				       total_aggrs, arg_dummy_aggr_ids,
+				       config.dummy.dummy_hammers_per_round,
+				       config.dummy.hammer_dummies_first);
 
 	if (!hammers_before_wait.empty())
 		adjust_hammers_per_ref(hammers_before_wait, hrs[0].aggr_ids.size(),
 				       config.hammer.hammer_rgs_individually,
 				       config.hammer.skip_hammering_aggr, row_groups.size(),
-				       total_aggrs, arg_dummy_aggr_ids, 0, hammer_dummies_first);
+				       total_aggrs, arg_dummy_aggr_ids, 0,
+				       config.dummy.hammer_dummies_first);
 
 	vector<uint> total_bitflips(total_victims, 0);
 
@@ -1969,11 +1940,15 @@ int main(int argc, char **argv)
 			bool verbose = (i == 0);
 			auto loc_bitflips = analyzeTRR(
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
-				dummy_hammers_per_round, hammer_dummies_first,
-				hammer_dummies_independently, config.hammer.cascaded_hammer,
-				hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
+				config.dummy.dummy_hammers_per_round,
+				config.dummy.hammer_dummies_first,
+				config.dummy.hammer_dummies_independently,
+				config.hammer.cascaded_hammer, hammers_per_round,
+				config.hammer.hammer_cycle_time, hammer_duration,
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
-				config.refresh.refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs, config.hammer.init_only_victims, ignore_dummy_hammers,
+				config.refresh.refs_after_init, after_init_dummies,
+				config.hammer.init_aggrs_first, ignore_aggrs,
+				config.hammer.init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 				init_to_hammerbw_delay, num_bank0_hammers,
@@ -2061,14 +2036,14 @@ int main(int argc, char **argv)
 		// run the experiment as a single SoftMC program
 		auto num_bitflips = analyzeTRR(
 			platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
-			dummy_hammers_per_round, hammer_dummies_first, hammer_dummies_independently,
-			config.hammer.cascaded_hammer, hammers_per_round,
-			config.hammer.hammer_cycle_time,
-			hammer_duration, config.experiment.num_rounds,
-			config.hammer.skip_hammering_aggr,
-			config.refresh.refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false,
-			config.hammer.init_only_victims, false,
-			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer, config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
+			config.dummy.dummy_hammers_per_round, config.dummy.hammer_dummies_first,
+			config.dummy.hammer_dummies_independently, config.hammer.cascaded_hammer,
+			hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
+			config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
+			config.refresh.refs_after_init, after_init_dummies,
+			config.hammer.init_aggrs_first, false, config.hammer.init_only_victims,
+			false, first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
+			config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
 			pre_init_nops, true, config.experiment.num_iterations, true);
 
