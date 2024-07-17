@@ -1642,7 +1642,6 @@ int main(int argc, char **argv)
 	vector<uint> arg_dummy_aggr_ids;
 	bool hammer_dummies_first = false;
 	bool hammer_dummies_independently = false;
-	uint num_refs_per_round = 1;
 	uint pre_ref_delay = 0;
 	bool append_output = false;
 
@@ -1661,9 +1660,7 @@ int main(int argc, char **argv)
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
 		// refresh related args
-		("refs_per_round", value(&num_refs_per_round)->default_value(num_refs_per_round),
-		 "Specifies how many REF commands to issue at the end of a round, i.e., after "
-		 "hammering.")("refs_after_init", value(&refs_after_init),
+		("refs_after_init", value(&refs_after_init),
 			       "Specifies the number of REF commands to issue right after "
 			       "initializing data in DRAM rows.")
 
@@ -1987,7 +1984,7 @@ int main(int argc, char **argv)
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
 				refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs, config.hammer.init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
-				num_refs_per_round, pre_ref_delay, hammers_before_wait,
+				config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 				init_to_hammerbw_delay, num_bank0_hammers,
 				num_pre_init_bank0_hammers, pre_init_nops, false, 0, verbose);
 
@@ -2079,8 +2076,7 @@ int main(int argc, char **argv)
 			hammer_duration, config.experiment.num_rounds,
 			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false,
 			config.hammer.init_only_victims, false,
-			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
-			num_refs_per_round, pre_ref_delay, hammers_before_wait,
+			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer, config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
 			pre_init_nops, true, config.experiment.num_iterations, true);
 
