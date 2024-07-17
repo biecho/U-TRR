@@ -1630,12 +1630,13 @@ int main(int argc, char **argv)
 	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
 	bool first_it_aggr_init_and_hammer = config.hammer.first_it_aggr_init_and_hammer;
 
+	uint num_dummy_aggressors = config.dummy.num_dummy_aggressors;
+
 	float init_to_hammerbw_delay = 0.0f;
 	bool first_it_dummy_hammer = false;
 	uint num_bank0_hammers = 0;
 	uint num_pre_init_bank0_hammers = 0;
 	uint pre_init_nops = 0;
-	uint num_dummy_aggressors = 0;
 	int dummy_aggrs_bank = -1;
 	uint dummy_hammers_per_round = 1;
 	uint dummy_ids_offset = 0;
@@ -1647,7 +1648,6 @@ int main(int argc, char **argv)
 
 	bool only_pick_rgs = false;
 
-	uint refs_after_init = 0;
 	uint num_dummy_after_init = 0;
 	bool refs_after_init_no_dummy_hammer = false;
 
@@ -1659,17 +1659,8 @@ int main(int argc, char **argv)
 
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
-		// refresh related args
-		("refs_after_init", value(&refs_after_init),
-			       "Specifies the number of REF commands to issue right after "
-			       "initializing data in DRAM rows.")
-
 		// dummy row related args
-		("num_dummy_aggrs",
-		 value(&num_dummy_aggressors)->default_value(num_dummy_aggressors),
-		 "Specifies the number of dummy aggressors to hammer in each round. The dummy row "
-		 "addresses are selected such that they are different and in safe distance from "
-		 "the actual aggressor rows.")(
+		(
 			"dummy_aggrs_bank",
 			value(&dummy_aggrs_bank)->default_value(dummy_aggrs_bank),
 			"Specifies the bank address from which dummy rows should be selected. If "
@@ -1982,7 +1973,7 @@ int main(int argc, char **argv)
 				hammer_dummies_independently, config.hammer.cascaded_hammer,
 				hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
-				refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs, config.hammer.init_only_victims, ignore_dummy_hammers,
+				config.refresh.refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs, config.hammer.init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 				init_to_hammerbw_delay, num_bank0_hammers,
@@ -2074,7 +2065,8 @@ int main(int argc, char **argv)
 			config.hammer.cascaded_hammer, hammers_per_round,
 			config.hammer.hammer_cycle_time,
 			hammer_duration, config.experiment.num_rounds,
-			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false,
+			config.hammer.skip_hammering_aggr,
+			config.refresh.refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false,
 			config.hammer.init_only_victims, false,
 			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer, config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,

@@ -167,50 +167,50 @@ TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
 
 		// Dummy row related args
 		("num_dummy_aggrs",
-		 po::value<uint>(&config.dummy_row.num_dummy_aggressors)->default_value(0),
+		 po::value<uint>(&config.dummy.num_dummy_aggressors)->default_value(0),
 		 "Specifies the number of dummy aggressors to hammer in each round. The dummy row "
 		 "addresses are selected such that they are different and in safe distance from "
 		 "the actual aggressor rows.")(
 			"dummy_aggrs_bank",
-			po::value<int>(&config.dummy_row.dummy_aggrs_bank)->default_value(-1),
+			po::value<int>(&config.dummy.dummy_aggrs_bank)->default_value(-1),
 			"Specifies the bank address from which dummy rows should be selected. If "
 			"not specified, TRR Analyzer picks dummy rows from the same bank as the "
 			"row groups.")(
 			"dummy_aggr_ids",
-			po::value<std::vector<uint> >(&config.dummy_row.dummy_aggr_ids)
+			po::value<std::vector<uint> >(&config.dummy.dummy_aggr_ids)
 				->multitoken(),
 			"Specifies the exact dummy row addresses to hammer in each round instead "
 			"of letting TRR Analyzer select the dummy rows.")(
 			"dummy_hammers_per_round",
-			po::value<uint>(&config.dummy_row.dummy_hammers_per_round)->default_value(1),
+			po::value<uint>(&config.dummy.dummy_hammers_per_round)->default_value(1),
 			"Specifies how many times each dummy row is hammered in each round.")(
 			"dummy_ids_offset",
-			po::value<uint>(&config.dummy_row.dummy_ids_offset)->default_value(0),
+			po::value<uint>(&config.dummy.dummy_ids_offset)->default_value(0),
 			"Specifies a value to offset every dummy row address. Useful when there is "
 			"a need to pick different dummy rows in different runs of TRR Analyzer.")(
 			"hammer_dummies_first",
-			po::bool_switch(&config.dummy_row.hammer_dummies_first),
+			po::bool_switch(&config.dummy.hammer_dummies_first),
 			"When specified, the dummy rows are hammered before hammering the actual "
 			"aggressor rows.")(
 			"hammer_dummies_independently",
-			po::bool_switch(&config.dummy_row.hammer_dummies_independently),
+			po::bool_switch(&config.dummy.hammer_dummies_independently),
 			"When specified, the dummy rows are hammered after the aggressor rows "
 			"regardless of whether --cascaded is used or not. The dummy rows are "
 			"simply treated as a separate group of rows to hammer after hammering the "
 			"aggressor rows in interleaved or cascaded way.")(
 			"num_dummy_after_init",
-			po::value<uint>(&config.dummy_row.num_dummy_after_init)->default_value(0),
+			po::value<uint>(&config.dummy.num_dummy_after_init)->default_value(0),
 			"Specifies the number of dummy rows to hammer right after initializing the "
 			"victim and aggressor rows. These dummy row hammers happen concurrently "
 			"with --refs_after_init refreshes. Each dummy is hammered as much as "
 			"possible based on the refresh interval and --refs_after_init.")(
 			"refs_after_init_no_dummy_hammer",
-			po::bool_switch(&config.dummy_row.refs_after_init_no_dummy_hammer),
+			po::bool_switch(&config.dummy.refs_after_init_no_dummy_hammer),
 			"When specified, after hammering dummy rows as specified by "
 			"--num_dummy_after_init, TRR Analyzer also performs another set of "
 			"refreshes but this time without hammering dummy rows.")(
 			"first_it_dummy_hammer",
-			po::bool_switch(&config.dummy_row.first_it_dummy_hammer),
+			po::bool_switch(&config.dummy.first_it_dummy_hammer),
 			"When specified, the dummy rows are hammered only during the first "
 			"iteration.");
 

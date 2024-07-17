@@ -79,7 +79,7 @@ struct MemoryBankConfig {
 struct TRRAnalyzerConfig {
 	RowAnalysisConfig row_analysis;
 	HammerConfig hammer;
-	DummyRowConfig dummy_row;
+	DummyRowConfig dummy;
 	RefreshConfig refresh;
 	ExperimentConfig experiment;
 	OutputConfig output;
