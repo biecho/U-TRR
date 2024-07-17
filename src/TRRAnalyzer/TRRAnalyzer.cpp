@@ -1699,14 +1699,13 @@ int main(int argc, char **argv)
 						     row_layout);
 	}
 
-	std::ofstream out_file;
-	string filePath = config.output.out_filename;
-	ensureDirectoryExists(filePath);
-	out_file = openFile(filePath, config.output.append_output);
-	if (config.experiment.only_pick_rgs) { // write the picked weak row indices to the output
-					       // file and exit
+	ensureDirectoryExists(config.output.out_filename);
+	std::ofstream outFile = openFile(config.output.out_filename, config.output.append_output);
+
+	if (config.experiment.only_pick_rgs) {
+		// write the picked weak row indices to the output file and exit
 		for (auto &rg : row_groups)
-			out_file << rg.index_in_file << " ";
+			outFile << rg.index_in_file << " ";
 
 		return 0;
 	}
@@ -1827,8 +1826,8 @@ int main(int argc, char **argv)
 	std::cout << BLUE_TXT << "tRAS: " << tras_cycles << " cycles" << NORMAL_TXT << std::endl;
 
 	// printing experiment parameters
-	out_file << "row_layout=" << row_layout << std::endl;
-	out_file << "--- END OF HEADER ---" << std::endl;
+	outFile << "row_layout=" << row_layout << std::endl;
+	outFile << "--- END OF HEADER ---" << std::endl;
 
 	if (!config.experiment.use_single_softmc_prog) {
 		for (uint i = 0; i < config.experiment.num_iterations; i++) {
@@ -1857,7 +1856,7 @@ int main(int argc, char **argv)
 			++progress_bar;
 			progress_bar.display();
 
-			out_file << "Iteration " << i << " bitflips:" << std::endl;
+			outFile << "Iteration " << i << " bitflips:" << std::endl;
 
 			if (!config.hammer.skip_hammering_aggr) {
 				uint bitflips_ind = 0;
@@ -1868,7 +1867,7 @@ int main(int argc, char **argv)
 					std::vector<std::string> output_strs_vict, output_strs_uni;
 
 					for (uint vict : hr.victim_ids) {
-						// out_file << "Victim row " << vict << ": " <<
+						// outFile << "Victim row " << vict << ": " <<
 						// num_bitflips[it_vict] << std::endl;
 						string output_str_vict;
 						output_str_vict =
@@ -1888,7 +1887,7 @@ int main(int argc, char **argv)
 					}
 
 					for (uint uni : hr.uni_ids) {
-						// out_file << "Victim row(U) " << uni << ": " <<
+						// outFile << "Victim row(U) " << uni << ": " <<
 						// num_bitflips[it_vict] << std::endl;
 						string output_str_uni;
 						output_str_uni =
@@ -1915,17 +1914,17 @@ int main(int argc, char **argv)
 						    to_physical_row_id(hr.uni_ids[uni_ind]) <
 							    to_physical_row_id(
 								    hr.victim_ids[vict_ind])) {
-							out_file << output_strs_uni[uni_ind++]
-								 << std::endl;
+							outFile << output_strs_uni[uni_ind++]
+								<< std::endl;
 							vict_ind--;
 						} else {
-							out_file << output_strs_vict[vict_ind]
-								 << std::endl;
+							outFile << output_strs_vict[vict_ind]
+								<< std::endl;
 						}
 					}
 
 					for (; uni_ind < hr.uni_ids.size(); uni_ind++)
-						out_file << output_strs_uni[uni_ind] << std::endl;
+						outFile << output_strs_uni[uni_ind] << std::endl;
 				}
 			}
 		}
@@ -1952,7 +1951,7 @@ int main(int argc, char **argv)
 			true);
 
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
-		// receive PCIe data iteration by iteration and keep the out_file format the same
+		// receive PCIe data iteration by iteration and keep the outFile format the same
 
 		ulong read_data_size = ROW_SIZE_BYTES * total_victims;
 		char *buf = new char[read_data_size];
@@ -1962,7 +1961,7 @@ int main(int argc, char **argv)
 			if (!config.hammer.skip_hammering_aggr) {
 				platform.receiveData(buf, read_data_size);
 
-				out_file << "Iteration " << i << " bitflips:" << std::endl;
+				outFile << "Iteration " << i << " bitflips:" << std::endl;
 
 				uint row_it = 0;
 				for (auto &hr : hrs) {
@@ -1974,14 +1973,14 @@ int main(int argc, char **argv)
 							hr.vict_bitflip_locs[vict_ind]);
 						row_it++;
 
-						out_file << "Victim row " << hr.victim_ids[vict_ind]
-							 << ": " << bitflips.size();
+						outFile << "Victim row " << hr.victim_ids[vict_ind]
+							<< ": " << bitflips.size();
 						if (config.output.location_out) {
-							out_file << ": ";
+							outFile << ": ";
 							for (auto loc : bitflips)
-								out_file << loc << ", ";
+								outFile << loc << ", ";
 						}
-						out_file << endl;
+						outFile << endl;
 						total_bitflips[row_it] += bitflips.size();
 					}
 
@@ -1995,14 +1994,14 @@ int main(int argc, char **argv)
 							hr.uni_bitflip_locs[uni_ind]);
 						row_it++;
 
-						out_file << "Victim row(U) " << hr.uni_ids[uni_ind]
-							 << ": " << bitflips.size();
+						outFile << "Victim row(U) " << hr.uni_ids[uni_ind]
+							<< ": " << bitflips.size();
 						if (config.output.location_out) {
-							out_file << ": ";
+							outFile << ": ";
 							for (auto loc : bitflips)
-								out_file << loc << ", ";
+								outFile << loc << ", ";
 						}
-						out_file << endl;
+						outFile << endl;
 						total_bitflips[row_it] += bitflips.size();
 					}
 				}
@@ -2017,17 +2016,17 @@ int main(int argc, char **argv)
 	}
 
 	if (!config.hammer.skip_hammering_aggr) {
-		out_file << "Total bitflips:" << std::endl;
+		outFile << "Total bitflips:" << std::endl;
 		uint it_vict = 0;
 		for (auto &hr : hrs) {
 			for (uint vict : hr.victim_ids) {
-				out_file << "Victim row " << vict << ": "
-					 << total_bitflips[it_vict++] << std::endl;
+				outFile << "Victim row " << vict << ": "
+					<< total_bitflips[it_vict++] << std::endl;
 			}
 
 			for (uint uni : hr.uni_ids) {
-				out_file << "Victim row(U) " << uni << ": "
-					 << total_bitflips[it_vict++] << std::endl;
+				outFile << "Victim row(U) " << uni << ": "
+					<< total_bitflips[it_vict++] << std::endl;
 			}
 		}
 	}
@@ -2036,7 +2035,7 @@ int main(int argc, char **argv)
 
 	std::cout << "The test has finished!" << endl;
 
-	out_file.close();
+	outFile.close();
 
 	return 0;
 }
