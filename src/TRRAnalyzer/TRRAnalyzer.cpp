@@ -1652,7 +1652,6 @@ int main(int argc, char **argv)
 	uint num_dummy_after_init = 0;
 	bool refs_after_init_no_dummy_hammer = false;
 
-	bool init_only_victims = false;
 
 	bool use_single_softmc_prog = false;
 	bool location_out = false;
@@ -1661,18 +1660,6 @@ int main(int argc, char **argv)
 
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
-		// aggressor row related args
-		("first_it_aggr_init_and_hammer",
-					    bool_switch(&first_it_aggr_init_and_hammer),
-					    "When specified, the aggressor rows are "
-					    "initialized and hammered only during the first "
-					    "iteration.")("init_only_victims",
-							  bool_switch(&init_only_victims),
-							  "When specified, only the victim "
-							  "rows are initialized at the "
-							  "beginning of an iteration but "
-							  "not the aggressors.")
-
 		// refresh related args
 		("refs_per_round", value(&num_refs_per_round)->default_value(num_refs_per_round),
 		 "Specifies how many REF commands to issue at the end of a round, i.e., after "
@@ -1998,8 +1985,7 @@ int main(int argc, char **argv)
 				hammer_dummies_independently, config.hammer.cascaded_hammer,
 				hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
-				refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs,
-				init_only_victims, ignore_dummy_hammers,
+				refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs, config.hammer.init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				num_refs_per_round, pre_ref_delay, hammers_before_wait,
 				init_to_hammerbw_delay, num_bank0_hammers,
@@ -2091,7 +2077,8 @@ int main(int argc, char **argv)
 			config.hammer.cascaded_hammer, hammers_per_round,
 			config.hammer.hammer_cycle_time,
 			hammer_duration, config.experiment.num_rounds,
-			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false, init_only_victims, false,
+			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false,
+			config.hammer.init_only_victims, false,
 			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 			num_refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
