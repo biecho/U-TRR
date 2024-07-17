@@ -1518,13 +1518,13 @@ void pick_hammerable_row_groups_from_file(SoftMCPlatform &platform, vector<RowGr
 		for (auto rowGroup = rowGroups.begin(); rowGroup != rowGroups.end(); rowGroup++) {
 			if (!is_hammerable(platform, *rowGroup, row_layout, cascaded_hammer)) {
 				std::cout << RED_TXT << "Candidate victim row set "
-					  << rowGroup->rows_as_str() << " is not hammerable"
+					  << rowGroup->toString() << " is not hammerable"
 					  << NORMAL_TXT << std::endl;
 				rowGroups.erase(rowGroup--);
 				continue;
 			}
 
-			std::cout << GREEN_TXT << "Candidate victim row " << rowGroup->rows_as_str()
+			std::cout << GREEN_TXT << "Candidate victim row " << rowGroup->toString()
 				  << " is hammerable" << NORMAL_TXT << std::endl;
 
 			*rowGroup = adjustRowGroup(*rowGroup, row_layout);
