@@ -1634,36 +1634,6 @@ int main(int argc, char **argv)
 	int dummy_aggrs_bank = config.dummy.dummy_aggrs_bank;
 	vector<uint> arg_dummy_aggr_ids = config.dummy.dummy_aggr_ids;
 
-	bool only_pick_rgs = false;
-	bool use_single_softmc_prog = false;
-	uint arg_log_phys_conv_scheme = 0;
-
-	options_description desc("TRR Analyzer Options");
-	desc.add_options()("help,h", "Prints this usage statement.")
-		// other. args
-		("only_pick_rgs", bool_switch(&only_pick_rgs),
-		 "When specified, the test finds hammerable row groups rows in "
-		 "--row_scout_file, but it does not run the TRR analysis.")(
-			"log_phys_scheme",
-			value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
-			"Specifies how to convert logical row IDs to physical row ids and the "
-			"other way around. Pass 0 (default) for sequential mapping, 1 for the "
-			"mapping scheme typically used in Samsung chips.")(
-			"use_single_softmc_prog", bool_switch(&use_single_softmc_prog),
-			"When specified, the entire experiment executes as a single SoftMC "
-			"program. This is to prevent SoftMC maintenance operations to kick in "
-			"between multiple SoftMC programs. However, using this option may result "
-			"in a very large program that may exceed the instruction limit.");
-
-	variables_map vm;
-	boost::program_options::store(parse_command_line(argc, argv, desc), vm);
-	if (vm.count("help")) {
-		cout << desc << endl;
-		return 0;
-	}
-
-	notify(vm);
-
 	if (!row_group_indices.empty())
 		num_row_groups = row_group_indices.size();
 
@@ -1724,8 +1694,8 @@ int main(int argc, char **argv)
 	platform.reset_fpga();
 	platform.set_aref(false); // disable refresh
 
-	assert(arg_log_phys_conv_scheme < uint(LogPhysRowIDScheme::MAX));
-	logical_physical_conversion_scheme = (LogPhysRowIDScheme)arg_log_phys_conv_scheme;
+	assert(config.experiment.log_phys_scheme < uint(LogPhysRowIDScheme::MAX));
+	logical_physical_conversion_scheme = (LogPhysRowIDScheme)config.experiment.log_phys_scheme;
 
 	// init random data generator
 	std::srand(0);
@@ -1751,7 +1721,7 @@ int main(int argc, char **argv)
 						     row_layout);
 	}
 
-	if (only_pick_rgs) { // write the picked weak row indices to the output file and exit
+	if (config.experiment.only_pick_rgs) { // write the picked weak row indices to the output file and exit
 		for (auto &rg : row_groups)
 			out_file << rg.index_in_file << " ";
 
@@ -1877,7 +1847,7 @@ int main(int argc, char **argv)
 	out_file << "row_layout=" << row_layout << std::endl;
 	out_file << "--- END OF HEADER ---" << std::endl;
 
-	if (!use_single_softmc_prog) {
+	if (!config.experiment.use_single_softmc_prog) {
 		for (uint i = 0; i < config.experiment.num_iterations; i++) {
 			bool ignore_aggrs = first_it_aggr_init_and_hammer && i != 0;
 			bool ignore_dummy_hammers = config.dummy.first_it_dummy_hammer && i != 0;
