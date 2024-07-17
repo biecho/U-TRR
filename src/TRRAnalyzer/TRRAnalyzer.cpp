@@ -1618,8 +1618,6 @@ int main(int argc, char **argv)
 	auto config = parseCommandLine(argc, argv);
 
 	/* Program options */
-	vector<uint> row_group_indices = config.row_analysis.row_group_indices;
-
 	vector<uint> hammers_per_round = config.hammer.hammers_per_round;
 	vector<uint> hammers_before_wait = config.hammer.hammers_before_wait;
 	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
@@ -1629,8 +1627,8 @@ int main(int argc, char **argv)
 	int dummy_aggrs_bank = config.dummy.dummy_aggrs_bank;
 	vector<uint> arg_dummy_aggr_ids = config.dummy.dummy_aggr_ids;
 
-	if (!row_group_indices.empty()) {
-		config.row_analysis.num_row_groups = row_group_indices.size();
+	if (!config.row_analysis.row_group_indices.empty()) {
+		config.row_analysis.num_row_groups = config.row_analysis.row_group_indices.size();
 	}
 
 	if (!arg_dummy_aggr_ids.empty()) {
@@ -1675,12 +1673,15 @@ int main(int argc, char **argv)
 
 	vector<RowGroup> row_groups;
 	row_groups.reserve(config.row_analysis.num_row_groups);
-	if (!row_group_indices.empty()) {
-		get_row_groups_by_index(allRowGroups, row_groups, row_group_indices, config.row_analysis.row_layout);
+	if (!config.row_analysis.row_group_indices.empty()) {
+		get_row_groups_by_index(allRowGroups, row_groups,
+					config.row_analysis.row_group_indices,
+					config.row_analysis.row_layout);
 	} else if (config.row_analysis.num_row_groups > 0) {
 		pick_hammerable_row_groups_from_file(platform, allRowGroups, row_groups,
 						     config.row_analysis.num_row_groups,
-						     config.hammer.cascaded_hammer, config.row_analysis.row_layout);
+						     config.hammer.cascaded_hammer,
+						     config.row_analysis.row_layout);
 	}
 
 	ensureDirectoryExists(config.output.out_filename);
