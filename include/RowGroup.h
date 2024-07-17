@@ -79,24 +79,6 @@ typedef struct RowGroup {
 		ss << ")";
 		return ss.str();
 	}
-
-	std::string rows_as_str()
-	{
-		std::string ret = "(";
-
-		for (auto &wr : rows) {
-			ret = ret + to_string(wr.row_id) + ", ";
-		}
-
-		// remove ', ' at the end
-		if (ret.size() > 1) {
-			ret = ret.substr(0, ret.size() - 2);
-		}
-
-		ret = ret + ")";
-
-		return ret;
-	}
 } RowGroup;
 
 JS_OBJECT_EXTERNAL(Row, JS_MEMBER(row_id), JS_MEMBER(bitflip_locs));
