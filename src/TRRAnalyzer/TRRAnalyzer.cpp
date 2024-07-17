@@ -1628,9 +1628,9 @@ int main(int argc, char **argv)
 	vector<uint> hammers_per_round = config.hammer.hammers_per_round;
 	vector<uint> hammers_before_wait = config.hammer.hammers_before_wait;
 	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
+	bool first_it_aggr_init_and_hammer = config.hammer.first_it_aggr_init_and_hammer;
 
 	float init_to_hammerbw_delay = 0.0f;
-	bool first_it_aggr_init_and_hammer = false;
 	bool first_it_dummy_hammer = false;
 	uint num_bank0_hammers = 0;
 	uint num_pre_init_bank0_hammers = 0;
