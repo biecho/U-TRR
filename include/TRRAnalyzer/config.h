@@ -9,7 +9,7 @@ namespace CLIConfig {
 
 // Configuration for row analysis
 struct RowAnalysisConfig {
-	std::string row_scout_file = "";
+	std::string row_scout_file;
 	std::vector<uint> row_group_indices;
 	uint num_row_groups = 1;
 	std::string row_layout = "RAR";

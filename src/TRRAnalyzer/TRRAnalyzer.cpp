@@ -1615,16 +1615,18 @@ void adjust_hammers_per_ref(std::vector<uint> &hammers_per_round, const uint num
 
 int main(int argc, char **argv)
 {
-
 	auto config = CLIConfig::parseCommandLine(argc, argv);
 
 	/* Program options */
 	auto out_filename = config.output.out_filename;
-	uint num_row_groups = 1;
-	std::string row_scout_file = "";
-	std::string row_layout = "RAR";
-	std::vector<uint> hammers_per_round;
-	std::vector<uint> hammers_before_wait;
+
+	uint num_row_groups = config.row_analysis.num_row_groups;
+	string row_scout_file = config.row_analysis.row_scout_file;
+	string row_layout = config.row_analysis.row_layout;
+	vector<uint> row_group_indices = config.row_analysis.row_group_indices;
+
+	vector<uint> hammers_per_round;
+	vector<uint> hammers_before_wait;
 	float init_to_hammerbw_delay = 0.0f;
 	bool init_aggrs_first = false;
 	bool first_it_aggr_init_and_hammer = false;
@@ -1641,7 +1643,6 @@ int main(int argc, char **argv)
 	bool hammer_dummies_first = false;
 	bool hammer_dummies_independently = false;
 	bool cascaded_hammer = false;
-	uint num_rounds = 0;
 	uint num_refs_per_round = 1;
 	uint pre_ref_delay = 0;
 	uint num_iterations = 1;
@@ -1649,7 +1650,6 @@ int main(int argc, char **argv)
 	uint hammer_duration = 0; // as DDR cycles (1.5ns)
 	bool append_output = false;
 
-	vector<uint> row_group_indices;
 	bool skip_hammering_aggr = false;
 
 	bool only_pick_rgs = false;
@@ -1666,32 +1666,8 @@ int main(int argc, char **argv)
 	uint arg_log_phys_conv_scheme = 0;
 
 	options_description desc("TRR Analyzer Options");
-	desc.add_options()("help,h", "Prints this usage statement.")(
-		"out,o", value(&out_filename)->default_value(out_filename),
-		"Specifies a path for the output file.")("row_scout_file,f",
-							 value(&row_scout_file)->required(),
-							 "A file containing a list of row groups "
-							 "and their retentions times, i.e., the "
-							 "output of RowScout.")(
-		"num_row_groups,w", value(&num_row_groups)->default_value(num_row_groups),
-		"The number of row groups to work with. Row groups are parsed in order from the "
-		"'row_scout_file'.")("row_layout", value(&row_layout)->default_value(row_layout),
-				     "Specifies how the aggressor rows should be positioned inside "
-				     "a row group. Allowed characters are 'R', 'A', 'U', and '-'. "
-				     "For example, 'RAR' places an aggressor row between two "
-				     "adjacent (victim) rows, as is single-sided RowHammer "
-				     "attacks. 'RARAR' places two aggressor rows to perform "
-				     "double-sided RowHammer attack. '-' specifies a row that is "
-				     "not to be hammered or checked for bit flips. 'U' specifies a "
-				     "(unified) row that will be both hammered and checked for bit "
-				     "flips.")(
-		"row_group_indices", value<vector<uint> >(&row_group_indices)->multitoken(),
-		"An optional argument used select which exact row groups in the --row_scout_file "
-		"to use. When this argument is not provided, TRR Analyzer selects --num_row_groups "
-		"from the file in order.")(
-		"num_rounds", value(&num_rounds)->default_value(num_rounds),
-		"Specifies the number of (hammer + refresh) rounds that the experiment should "
-		"perform.")("num_iterations", value(&num_iterations)->default_value(num_iterations),
+	desc.add_options()("help,h", "Prints this usage statement.")
+		("num_iterations", value(&num_iterations)->default_value(num_iterations),
 			    "Defines how many times the sequence of {aggr/victim initialization, "
 			    "hammer+ref rounds, reading back and checking for bit flips} should be "
 			    "performed.")
@@ -2058,7 +2034,7 @@ int main(int argc, char **argv)
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 				dummy_hammers_per_round, hammer_dummies_first,
 				hammer_dummies_independently, cascaded_hammer, hammers_per_round,
-				hammer_cycle_time, hammer_duration, num_rounds, skip_hammering_aggr,
+				hammer_cycle_time, hammer_duration, config.experiment.num_rounds, skip_hammering_aggr,
 				refs_after_init, after_init_dummies, init_aggrs_first, ignore_aggrs,
 				init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
@@ -2150,7 +2126,7 @@ int main(int argc, char **argv)
 			platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 			dummy_hammers_per_round, hammer_dummies_first, hammer_dummies_independently,
 			cascaded_hammer, hammers_per_round, hammer_cycle_time, hammer_duration,
-			num_rounds, skip_hammering_aggr, refs_after_init, after_init_dummies,
+			config.experiment.num_rounds, skip_hammering_aggr, refs_after_init, after_init_dummies,
 			init_aggrs_first, false, init_only_victims, false,
 			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 			num_refs_per_round, pre_ref_delay, hammers_before_wait,
