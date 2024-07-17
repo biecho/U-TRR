@@ -1630,7 +1630,6 @@ int main(int argc, char **argv)
 	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
 
 	float init_to_hammerbw_delay = 0.0f;
-	bool init_aggrs_first = false;
 	bool first_it_aggr_init_and_hammer = false;
 	bool first_it_dummy_hammer = false;
 	uint num_bank0_hammers = 0;
@@ -1663,9 +1662,7 @@ int main(int argc, char **argv)
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
 		// aggressor row related args
-		("init_aggrs_first", bool_switch(&init_aggrs_first),
-		 "When specified, the aggressor rows are initialized with a data pattern "
-		 "before the victim rows.")("first_it_aggr_init_and_hammer",
+		("first_it_aggr_init_and_hammer",
 					    bool_switch(&first_it_aggr_init_and_hammer),
 					    "When specified, the aggressor rows are "
 					    "initialized and hammered only during the first "
@@ -2001,7 +1998,7 @@ int main(int argc, char **argv)
 				hammer_dummies_independently, config.hammer.cascaded_hammer,
 				hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
-				refs_after_init, after_init_dummies, init_aggrs_first, ignore_aggrs,
+				refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, ignore_aggrs,
 				init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				num_refs_per_round, pre_ref_delay, hammers_before_wait,
@@ -2094,8 +2091,7 @@ int main(int argc, char **argv)
 			config.hammer.cascaded_hammer, hammers_per_round,
 			config.hammer.hammer_cycle_time,
 			hammer_duration, config.experiment.num_rounds,
-			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies,
-			init_aggrs_first, false, init_only_victims, false,
+			config.hammer.skip_hammering_aggr, refs_after_init, after_init_dummies, config.hammer.init_aggrs_first, false, init_only_victims, false,
 			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 			num_refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
