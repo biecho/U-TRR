@@ -1618,8 +1618,6 @@ int main(int argc, char **argv)
 	auto config = parseCommandLine(argc, argv);
 
 	/* Program options */
-	string row_scout_file = config.row_analysis.row_scout_file;
-	string row_layout = config.row_analysis.row_layout;
 	vector<uint> row_group_indices = config.row_analysis.row_group_indices;
 
 	vector<uint> hammers_per_round = config.hammer.hammers_per_round;
@@ -1639,23 +1637,11 @@ int main(int argc, char **argv)
 		num_dummy_aggressors = arg_dummy_aggr_ids.size();
 	}
 
-	if (row_layout.empty()) {
-		auto dot_pos = row_scout_file.find_last_of('.');
-		if (dot_pos != string::npos)
-			row_layout = row_scout_file.substr(dot_pos + 1);
-		else {
-			std::cerr << RED_TXT
-				  << "ERROR: Could not find '.' in the provided --row_scout_file\n"
-				  << std::endl;
-			exit(-5);
-		}
-	}
-
-	if (!std::regex_match(row_layout, std::regex("^[RrAaUu-]+$"))) {
+	if (!std::regex_match(config.row_analysis.row_layout, std::regex("^[RrAaUu-]+$"))) {
 		std::cerr << RED_TXT
 			  << "ERROR: --row_layout should contain only 'R', 'A', 'U', and '-' "
 			     "characters. Provided: "
-			  << row_layout << NORMAL_TXT << std::endl;
+			  << config.row_analysis.row_layout << NORMAL_TXT << std::endl;
 		exit(-3);
 	}
 
@@ -1685,16 +1671,16 @@ int main(int argc, char **argv)
 	vector<uint> picked_weak_indices;
 	picked_weak_indices.reserve(config.row_analysis.num_row_groups);
 
-	auto allRowGroups = parseAllRowGroups(row_scout_file);
+	auto allRowGroups = parseAllRowGroups(config.row_analysis.row_scout_file);
 
 	vector<RowGroup> row_groups;
 	row_groups.reserve(config.row_analysis.num_row_groups);
 	if (!row_group_indices.empty()) {
-		get_row_groups_by_index(allRowGroups, row_groups, row_group_indices, row_layout);
+		get_row_groups_by_index(allRowGroups, row_groups, row_group_indices, config.row_analysis.row_layout);
 	} else if (config.row_analysis.num_row_groups > 0) {
 		pick_hammerable_row_groups_from_file(platform, allRowGroups, row_groups,
 						     config.row_analysis.num_row_groups,
-						     config.hammer.cascaded_hammer, row_layout);
+						     config.hammer.cascaded_hammer, config.row_analysis.row_layout);
 	}
 
 	ensureDirectoryExists(config.output.out_filename);
@@ -1764,7 +1750,7 @@ int main(int argc, char **argv)
 	uint total_victims = 0;
 	uint total_aggrs = 0;
 	for (auto &rowGroup : row_groups) {
-		hrs.push_back(toHammerableRowSet(rowGroup, row_layout));
+		hrs.push_back(toHammerableRowSet(rowGroup, config.row_analysis.row_layout));
 		total_victims += hrs.back().victim_ids.size();
 		total_aggrs += hrs.back().aggr_ids.size();
 	}
@@ -1824,7 +1810,7 @@ int main(int argc, char **argv)
 	std::cout << BLUE_TXT << "tRAS: " << tras_cycles << " cycles" << NORMAL_TXT << std::endl;
 
 	// printing experiment parameters
-	outFile << "row_layout=" << row_layout << std::endl;
+	outFile << "row_layout=" << config.row_analysis.row_layout << std::endl;
 	outFile << "--- END OF HEADER ---" << std::endl;
 
 	if (!config.experiment.use_single_softmc_prog) {
