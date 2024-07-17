@@ -1765,8 +1765,8 @@ int main(int argc, char **argv)
 
 	uint total_victims = 0;
 	uint total_aggrs = 0;
-	for (auto &wrs : row_groups) {
-		hrs.push_back(toHammerableRowSet(wrs, row_layout));
+	for (auto &rowGroup : row_groups) {
+		hrs.push_back(toHammerableRowSet(rowGroup, row_layout));
 		total_victims += hrs.back().victim_ids.size();
 		total_aggrs += hrs.back().aggr_ids.size();
 	}
