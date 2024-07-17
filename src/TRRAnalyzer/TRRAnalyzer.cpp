@@ -1645,7 +1645,6 @@ int main(int argc, char **argv)
 	bool cascaded_hammer = false;
 	uint num_refs_per_round = 1;
 	uint pre_ref_delay = 0;
-	uint num_iterations = 1;
 	float hammer_cycle_time = 0.0f; // as nanosec
 	uint hammer_duration = 0; // as DDR cycles (1.5ns)
 	bool append_output = false;
@@ -1667,15 +1666,11 @@ int main(int argc, char **argv)
 
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
-		("num_iterations", value(&num_iterations)->default_value(num_iterations),
-			    "Defines how many times the sequence of {aggr/victim initialization, "
-			    "hammer+ref rounds, reading back and checking for bit flips} should be "
-			    "performed.")
-
 		// aggressor row related args
 		("hammers_per_round", value<vector<uint> >(&hammers_per_round)->multitoken(),
 		 "Specifies how many times each of the aggressors in --row_layout will be hammered "
-		 "in a round. You must enter multiple values, one for each aggressor.")(
+		 "in a round. You must enter multiple values, one for each aggressor.")
+		 (
 			"cascaded_hammer", bool_switch(&cascaded_hammer),
 			"When specified, the aggressor and dummy rows are hammered in "
 			"non-interleaved manner, i.e., one row is hammered --hammers_per_round "
@@ -1987,7 +1982,7 @@ int main(int argc, char **argv)
 	vector<uint> total_bitflips(total_victims, 0);
 
 	// Setting up a progress bar
-	progresscpp::ProgressBar progress_bar(num_iterations, 70, '#', '-');
+	progresscpp::ProgressBar progress_bar(config.experiment.num_iterations, 70, '#', '-');
 
 	std::cout << BLUE_TXT << "Num hammerable row sets: " << hrs.size() << NORMAL_TXT
 		  << std::endl;
@@ -2026,7 +2021,7 @@ int main(int argc, char **argv)
 	out_file << "--- END OF HEADER ---" << std::endl;
 
 	if (!use_single_softmc_prog) {
-		for (uint i = 0; i < num_iterations; i++) {
+		for (uint i = 0; i < config.experiment.num_iterations; i++) {
 			bool ignore_aggrs = first_it_aggr_init_and_hammer && i != 0;
 			bool ignore_dummy_hammers = first_it_dummy_hammer && i != 0;
 			bool verbose = (i == 0);
@@ -2131,7 +2126,7 @@ int main(int argc, char **argv)
 			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 			num_refs_per_round, pre_ref_delay, hammers_before_wait,
 			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
-			pre_init_nops, true, num_iterations, true);
+			pre_init_nops, true, config.experiment.num_iterations, true);
 
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
 		// receive PCIe data iteration by iteration and keep the out_file format the same
@@ -2140,7 +2135,7 @@ int main(int argc, char **argv)
 		char *buf = new char[read_data_size];
 		vector<uint> bitflips;
 
-		for (uint i = 0; i < num_iterations; i++) {
+		for (uint i = 0; i < config.experiment.num_iterations; i++) {
 			if (!skip_hammering_aggr) {
 				platform.receiveData(buf, read_data_size);
 
