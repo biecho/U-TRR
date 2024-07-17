@@ -1625,13 +1625,14 @@ int main(int argc, char **argv)
 	string row_layout = config.row_analysis.row_layout;
 	vector<uint> row_group_indices = config.row_analysis.row_group_indices;
 
-	vector<uint> hammers_per_round;
-	vector<uint> hammers_before_wait;
+	vector<uint> hammers_per_round = config.hammer.hammers_per_round;
+	vector<uint> hammers_before_wait = config.hammer.hammers_before_wait;
+	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
+
 	float init_to_hammerbw_delay = 0.0f;
 	bool init_aggrs_first = false;
 	bool first_it_aggr_init_and_hammer = false;
 	bool first_it_dummy_hammer = false;
-	bool hammer_rgs_individually = false;
 	uint num_bank0_hammers = 0;
 	uint num_pre_init_bank0_hammers = 0;
 	uint pre_init_nops = 0;
@@ -1642,14 +1643,10 @@ int main(int argc, char **argv)
 	vector<uint> arg_dummy_aggr_ids;
 	bool hammer_dummies_first = false;
 	bool hammer_dummies_independently = false;
-	bool cascaded_hammer = false;
 	uint num_refs_per_round = 1;
 	uint pre_ref_delay = 0;
 	float hammer_cycle_time = 0.0f; // as nanosec
-	uint hammer_duration = 0; // as DDR cycles (1.5ns)
 	bool append_output = false;
-
-	bool skip_hammering_aggr = false;
 
 	bool only_pick_rgs = false;
 
@@ -1667,30 +1664,9 @@ int main(int argc, char **argv)
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
 		// aggressor row related args
-		("hammers_per_round", value<vector<uint> >(&hammers_per_round)->multitoken(),
-		 "Specifies how many times each of the aggressors in --row_layout will be hammered "
-		 "in a round. You must enter multiple values, one for each aggressor.")
-		 (
-			"cascaded_hammer", bool_switch(&cascaded_hammer),
-			"When specified, the aggressor and dummy rows are hammered in "
-			"non-interleaved manner, i.e., one row is hammered --hammers_per_round "
-			"times and then the next row is hammered. Otherwise, the aggressor and "
-			"dummy rows get activated one after another --hammers_per_round times.")(
-			"hammers_before_wait",
-			value<vector<uint> >(&hammers_before_wait)->multitoken(),
-			"Similar to --hammers_per_round but hammering happens right after data "
-			"initialization before waiting for half of the retention time.")(
-			"hammer_rgs_individually", bool_switch(&hammer_rgs_individually),
-			"When specified, --hammers_per_round specifies hammers for each aggressor "
-			"row for separately each row group. Otherwise, the same aggressor hammers "
-			"are applied to all row groups.")("skip_hammering_aggr",
-							  bool_switch(&skip_hammering_aggr),
-							  "When provided, the aggressor rows are "
-							  "not hammered but just used to pick "
-							  "locations for the dummy rows.")(
-			"hammer_duration", value(&hammer_duration)->default_value(hammer_duration),
-			"Specifies the number of additional cycles to wait in row active state "
-			"while hammering (tRAS + hammer_duration). The default is 0, i.e., tRAS)")(
+		("hammer_duration", value(&hammer_duration)->default_value(hammer_duration),
+		 "Specifies the number of additional cycles to wait in row active state "
+		 "while hammering (tRAS + hammer_duration). The default is 0, i.e., tRAS)")(
 			"hammer_cycle_time",
 			value(&hammer_cycle_time)->default_value(hammer_cycle_time),
 			"Specifies the time interval between two consecutive activations (the "
@@ -1895,7 +1871,8 @@ int main(int argc, char **argv)
 		get_row_groups_by_index(allRowGroups, row_groups, row_group_indices, row_layout);
 	} else if (num_row_groups > 0) {
 		pick_hammerable_row_groups_from_file(platform, allRowGroups, row_groups,
-						     num_row_groups, cascaded_hammer, row_layout);
+						     num_row_groups, config.hammer.cascaded_hammer,
+						     row_layout);
 	}
 
 	if (only_pick_rgs) { // write the picked weak row indices to the output file and exit
@@ -1969,13 +1946,15 @@ int main(int argc, char **argv)
 
 	if (total_aggrs > 0)
 		adjust_hammers_per_ref(hammers_per_round, hrs[0].aggr_ids.size(),
-				       hammer_rgs_individually, skip_hammering_aggr,
+				       config.hammer.hammer_rgs_individually,
+				       config.hammer.skip_hammering_aggr,
 				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids,
 				       dummy_hammers_per_round, hammer_dummies_first);
 
 	if (!hammers_before_wait.empty())
 		adjust_hammers_per_ref(hammers_before_wait, hrs[0].aggr_ids.size(),
-				       hammer_rgs_individually, skip_hammering_aggr,
+				       config.hammer.hammer_rgs_individually,
+				       config.hammer.skip_hammering_aggr,
 				       row_groups.size(), total_aggrs, arg_dummy_aggr_ids, 0,
 				       hammer_dummies_first);
 
@@ -2028,9 +2007,10 @@ int main(int argc, char **argv)
 			auto loc_bitflips = analyzeTRR(
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 				dummy_hammers_per_round, hammer_dummies_first,
-				hammer_dummies_independently, cascaded_hammer, hammers_per_round,
-				hammer_cycle_time, hammer_duration, config.experiment.num_rounds, skip_hammering_aggr,
-				refs_after_init, after_init_dummies, init_aggrs_first, ignore_aggrs,
+				hammer_dummies_independently, config.hammer.cascaded_hammer,
+				hammers_per_round, hammer_cycle_time, hammer_duration,
+				config.experiment.num_rounds, config.hammer.skip_hammering_aggr, refs_after_init,
+				after_init_dummies, init_aggrs_first, ignore_aggrs,
 				init_only_victims, ignore_dummy_hammers,
 				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
 				num_refs_per_round, pre_ref_delay, hammers_before_wait,
@@ -2042,7 +2022,7 @@ int main(int argc, char **argv)
 
 			out_file << "Iteration " << i << " bitflips:" << std::endl;
 
-			if (!skip_hammering_aggr) {
+			if (!config.hammer.skip_hammering_aggr) {
 				uint bitflips_ind = 0;
 
 				for (auto &hr : hrs) {
@@ -2120,13 +2100,15 @@ int main(int argc, char **argv)
 		auto num_bitflips = analyzeTRR(
 			platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 			dummy_hammers_per_round, hammer_dummies_first, hammer_dummies_independently,
-			cascaded_hammer, hammers_per_round, hammer_cycle_time, hammer_duration,
-			config.experiment.num_rounds, skip_hammering_aggr, refs_after_init, after_init_dummies,
-			init_aggrs_first, false, init_only_victims, false,
-			first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
-			num_refs_per_round, pre_ref_delay, hammers_before_wait,
-			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
-			pre_init_nops, true, config.experiment.num_iterations, true);
+			config.hammer.cascaded_hammer, hammers_per_round, hammer_cycle_time,
+			hammer_duration, config.experiment.num_rounds,
+			config.hammer.skip_hammering_aggr,
+			refs_after_init, after_init_dummies, init_aggrs_first, false,
+			init_only_victims, false, first_it_aggr_init_and_hammer,
+			refs_after_init_no_dummy_hammer, num_refs_per_round, pre_ref_delay,
+			hammers_before_wait, init_to_hammerbw_delay, num_bank0_hammers,
+			num_pre_init_bank0_hammers, pre_init_nops, true,
+			config.experiment.num_iterations, true);
 
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
 		// receive PCIe data iteration by iteration and keep the out_file format the same
@@ -2136,7 +2118,7 @@ int main(int argc, char **argv)
 		vector<uint> bitflips;
 
 		for (uint i = 0; i < config.experiment.num_iterations; i++) {
-			if (!skip_hammering_aggr) {
+			if (!config.hammer.skip_hammering_aggr) {
 				platform.receiveData(buf, read_data_size);
 
 				out_file << "Iteration " << i << " bitflips:" << std::endl;
@@ -2193,7 +2175,7 @@ int main(int argc, char **argv)
 		delete[] buf;
 	}
 
-	if (!skip_hammering_aggr) {
+	if (!config.hammer.skip_hammering_aggr) {
 		out_file << "Total bitflips:" << std::endl;
 		uint it_vict = 0;
 		for (auto &hr : hrs) {
