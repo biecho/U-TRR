@@ -1618,7 +1618,6 @@ int main(int argc, char **argv)
 	auto config = parseCommandLine(argc, argv);
 
 	/* Program options */
-	vector<uint> hammers_per_round = config.hammer.hammers_per_round;
 	vector<uint> hammers_before_wait = config.hammer.hammers_before_wait;
 	uint hammer_duration = config.hammer.hammer_duration; // as DDR cycles (1.5ns)
 	bool first_it_aggr_init_and_hammer = config.hammer.first_it_aggr_init_and_hammer;
@@ -1756,10 +1755,8 @@ int main(int argc, char **argv)
 		total_aggrs += hrs.back().aggr_ids.size();
 	}
 
-	auto aggr_hammers_per_ref = hammers_per_round;
-
 	if (total_aggrs > 0)
-		adjust_hammers_per_ref(hammers_per_round, hrs[0].aggr_ids.size(),
+		adjust_hammers_per_ref(config.hammer.hammers_per_round, hrs[0].aggr_ids.size(),
 				       config.hammer.hammer_rgs_individually,
 				       config.hammer.skip_hammering_aggr, row_groups.size(),
 				       total_aggrs, arg_dummy_aggr_ids,
@@ -1794,14 +1791,14 @@ int main(int argc, char **argv)
 		std::cout << BLUE_TXT << "Aggressors: ";
 		for (auto aggr_id : hrs[hr_ind].aggr_ids) {
 			std::cout << aggr_id << " (";
-			std::cout << aggr_hammers_per_ref[hammers_ind++] << "), ";
+			std::cout << config.hammer.hammers_per_round[hammers_ind++] << "), ";
 		}
 		std::cout << NORMAL_TXT << std::endl;
 
 		std::cout << BLUE_TXT << "Unified Rows: ";
 		for (auto uni_id : hrs[hr_ind].uni_ids) {
 			std::cout << uni_id << " (";
-			std::cout << aggr_hammers_per_ref[hammers_ind++] << "), ";
+			std::cout << config.hammer.hammers_per_round[hammers_ind++] << "), ";
 		}
 		std::cout << NORMAL_TXT << std::endl;
 
@@ -1824,7 +1821,7 @@ int main(int argc, char **argv)
 				config.dummy.dummy_hammers_per_round,
 				config.dummy.hammer_dummies_first,
 				config.dummy.hammer_dummies_independently,
-				config.hammer.cascaded_hammer, hammers_per_round,
+				config.hammer.cascaded_hammer, config.hammer.hammers_per_round,
 				config.hammer.hammer_cycle_time, hammer_duration,
 				config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
 				config.refresh.refs_after_init, after_init_dummies,
@@ -1922,11 +1919,11 @@ int main(int argc, char **argv)
 			platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
 			config.dummy.dummy_hammers_per_round, config.dummy.hammer_dummies_first,
 			config.dummy.hammer_dummies_independently, config.hammer.cascaded_hammer,
-			hammers_per_round, config.hammer.hammer_cycle_time, hammer_duration,
-			config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
-			config.refresh.refs_after_init, after_init_dummies,
-			config.hammer.init_aggrs_first, false, config.hammer.init_only_victims,
-			false, first_it_aggr_init_and_hammer,
+			config.hammer.hammers_per_round, config.hammer.hammer_cycle_time,
+			hammer_duration, config.experiment.num_rounds,
+			config.hammer.skip_hammering_aggr, config.refresh.refs_after_init,
+			after_init_dummies, config.hammer.init_aggrs_first, false,
+			config.hammer.init_only_victims, false, first_it_aggr_init_and_hammer,
 			config.refresh.refs_after_init_no_dummy_hammer,
 			config.refresh.refs_per_round, config.refresh.pre_ref_delay,
 			hammers_before_wait, config.experiment.init_to_hammerbw_delay,
