@@ -460,8 +460,7 @@ void read_row_data(Program &prog, SoftMCRegAllocator &reg_alloc, const SMC_REG r
 	assert(reg_alloc.num_free_regs() == initial_free_regs);
 }
 
-
-HammerableRowSet toHammerableRowSet(const RowGroup &rowGroup, const std::string row_layout)
+HammerableRowSet toHammerableRowSet(const RowGroup &rowGroup, const std::string &rowLayout)
 {
 	HammerableRowSet hr;
 
@@ -470,48 +469,49 @@ HammerableRowSet toHammerableRowSet(const RowGroup &rowGroup, const std::string 
 
 	hr.victim_ids.reserve(rowGroup.rows.size());
 
-	uint wrs_ind = 0;
-	uint vict_to_aggr_dist = 1;
-	for (const char row_type : row_layout) {
-		switch (row_type) {
+	uint rowGroupIndex = 0;
+	uint victToAggrDist = 1;
+	for (const char rowType : rowLayout) {
+		auto rowId = rowGroup.rows[rowGroupIndex].row_id;
+		auto locs = rowGroup.rows[rowGroupIndex].bitflip_locs;
+
+		switch (rowType) {
 		case 'r':
 		case 'R':
-			hr.victim_ids.push_back(rowGroup.rows[wrs_ind].row_id);
-			hr.vict_bitflip_locs.push_back(rowGroup.rows[wrs_ind++].bitflip_locs);
-			vict_to_aggr_dist = 1;
+			hr.victim_ids.push_back(rowId);
+			hr.vict_bitflip_locs.push_back(locs);
+			rowGroupIndex++;
+			victToAggrDist = 1;
 			break;
 		case 'a':
-		case 'A':
-			hr.aggr_ids.push_back(to_logical_row_id(
-				to_physical_row_id(hr.victim_ids.back()) + vict_to_aggr_dist));
+		case 'A': {
+			auto id = to_physical_row_id(hr.victim_ids.back()) + victToAggrDist;
+			hr.aggr_ids.push_back(to_logical_row_id(id));
 
-			if (hr.aggr_ids.back() == rowGroup.rows[wrs_ind].row_id) // advance wrs_ind
-										 // if the
-										 // corresponding
-										 // row is profiled
-										 // as a retention
-										 // weak row but we
-										 // would like to
-										 // use it as an
-										 // aggressor row
-				wrs_ind++;
+			// advance rowGroupIndex if the corresponding row is profiled as a
+			// retention weak row but we would like to use it as an aggressor row
+			if (hr.aggr_ids.back() == rowId) {
+				rowGroupIndex++;
+			}
 
-			vict_to_aggr_dist = 1;
+			victToAggrDist = 1;
 			break;
+		}
 		case 'u':
 		case 'U':
-			hr.uni_ids.push_back(rowGroup.rows[wrs_ind].row_id);
-			hr.uni_bitflip_locs.push_back(rowGroup.rows[wrs_ind++].bitflip_locs);
-			vict_to_aggr_dist = 1;
+			hr.uni_ids.push_back(rowId);
+			hr.uni_bitflip_locs.push_back(locs);
+			rowGroupIndex++;
+			victToAggrDist = 1;
 			break;
 		case '-':
-			vict_to_aggr_dist++;
+			victToAggrDist++;
 			break;
 
 		default:
 			std::cerr << RED_TXT
-				  << "ERROR: Unexpected character in row_layout. row_layout: "
-				  << row_layout << ", unexpected char: " << row_type << NORMAL_TXT
+				  << "ERROR: Unexpected character in rowLayout. rowLayout: "
+				  << rowLayout << ", unexpected char: " << rowType << NORMAL_TXT
 				  << std::endl;
 			break;
 		}
