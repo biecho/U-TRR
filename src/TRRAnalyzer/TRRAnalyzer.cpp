@@ -1634,66 +1634,16 @@ int main(int argc, char **argv)
 	int dummy_aggrs_bank = config.dummy.dummy_aggrs_bank;
 	vector<uint> arg_dummy_aggr_ids = config.dummy.dummy_aggr_ids;
 
-	float init_to_hammerbw_delay = 0.0f;
-	bool first_it_dummy_hammer = false;
-	uint num_bank0_hammers = 0;
-	uint num_pre_init_bank0_hammers = 0;
-	uint pre_init_nops = 0;
-	uint pre_ref_delay = 0;
-	bool append_output = false;
-
 	bool only_pick_rgs = false;
-
-	uint num_dummy_after_init = 0;
-	bool refs_after_init_no_dummy_hammer = false;
-
 	bool use_single_softmc_prog = false;
-	bool location_out = false;
-
 	uint arg_log_phys_conv_scheme = 0;
 
 	options_description desc("TRR Analyzer Options");
 	desc.add_options()("help,h", "Prints this usage statement.")
-		// dummy row related args
-		("num_dummy_after_init",
-		 value(&num_dummy_after_init)->default_value(num_dummy_after_init),
-		 "Specifies the number of dummy rows to hammer right after initializing the "
-		 "victim and aggressor rows. These dummy row hammers happen concurrently "
-		 "with --refs_after_init refreshes. Each dummy is hammered as much as "
-		 "possible based on the refresh interval and --refs_after_init.")(
-			"refs_after_init_no_dummy_hammer",
-			bool_switch(&refs_after_init_no_dummy_hammer),
-			"When specified, after hammering dummy rows as specified by "
-			"--num_dummy_after_init, TRR Analyzer also performs another set of "
-			"refreshes but this time without hammering dummy rows.")(
-			"first_it_dummy_hammer", bool_switch(&first_it_dummy_hammer),
-			"When specified, the dummy rows are hammered only during the first "
-			"iteration.")
-
 		// other. args
-		("init_to_hammerbw_delay",
-		 value(&init_to_hammerbw_delay)->default_value(init_to_hammerbw_delay),
-		 "A float in range [0,1] that specifies the ratio of time to wait before "
-		 "performing --hammers_before_wait. The default value (0) means all the delay is "
-		 "inserted after performing --hammers_before_wait (if specified)")(
-			"num_bank0_hammers",
-			value(&num_bank0_hammers)->default_value(num_bank0_hammers),
-			"Specifies how many times a row from bank 0 should be hammered after "
-			"hammering the aggressor and dummy rows.")(
-			"num_pre_init_bank0_hammers",
-			value(&num_pre_init_bank0_hammers)
-				->default_value(num_pre_init_bank0_hammers),
-			"Specifies how many times a row from bank 0 should be hammered before "
-			"initializing data in victim and aggressor rows.")(
-			"pre_init_nops", value(&pre_init_nops)->default_value(pre_init_nops),
-			"Specifies the number of NOPs (as FPGA cycles, i.e., 4 DRAM cycles) to be "
-			"inserted before victim/aggressor data initialization.")(
-			"pre_ref_delay", value(&pre_ref_delay)->default_value(pre_ref_delay),
-			"Specifies the number of cycles to wait before performing REFs specified "
-			"by --refs_per_round. Must be 8 or larger if not 0 for this arg to take an "
-			"effect.")("only_pick_rgs", bool_switch(&only_pick_rgs),
-				   "When specified, the test finds hammerable row groups rows in "
-				   "--row_scout_file, but it does not run the TRR analysis.")(
+		("only_pick_rgs", bool_switch(&only_pick_rgs),
+		 "When specified, the test finds hammerable row groups rows in "
+		 "--row_scout_file, but it does not run the TRR analysis.")(
 			"log_phys_scheme",
 			value(&arg_log_phys_conv_scheme)->default_value(arg_log_phys_conv_scheme),
 			"Specifies how to convert logical row IDs to physical row ids and the "
@@ -1703,14 +1653,7 @@ int main(int argc, char **argv)
 			"When specified, the entire experiment executes as a single SoftMC "
 			"program. This is to prevent SoftMC maintenance operations to kick in "
 			"between multiple SoftMC programs. However, using this option may result "
-			"in a very large program that may exceed the instruction limit.")(
-			"append", bool_switch(&append_output),
-			"When specified, the output of TRR Analyzer is appended to the --out file. "
-			"Otherwise the --out file is cleared.")("location_out",
-								bool_switch(&location_out),
-								"When specified, the bit flip "
-								"locations are written to the "
-								"--out file.");
+			"in a very large program that may exceed the instruction limit.");
 
 	variables_map vm;
 	boost::program_options::store(parse_command_line(argc, argv, desc), vm);
@@ -1762,7 +1705,7 @@ int main(int argc, char **argv)
 
 	boost::filesystem::ofstream out_file;
 	if (!out_filename.empty()) {
-		if (append_output)
+		if (config.output.append_output)
 			out_file.open(out_filename, boost::filesystem::ofstream::app);
 		else
 			out_file.open(out_filename);
@@ -1847,7 +1790,7 @@ int main(int argc, char **argv)
 	// pick dummy rows that are hammered right after initializing data while performing refresh
 	// operations
 	std::vector<uint> after_init_dummies;
-	if (num_dummy_after_init > 0) {
+	if (config.dummy.num_dummy_after_init > 0) {
 		std::vector<RowGroup> cur_rgs_and_dummies = row_groups;
 		RowGroup cur_dummies;
 
@@ -1857,8 +1800,9 @@ int main(int argc, char **argv)
 			cur_dummies.rows.emplace_back(dummy_row_id, std::vector<uint>());
 		cur_rgs_and_dummies.push_back(cur_dummies);
 
-		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank, num_dummy_after_init,
-				      cur_rgs_and_dummies, config.dummy.dummy_ids_offset);
+		pick_dummy_aggressors(after_init_dummies, dummy_aggrs_bank,
+				      config.dummy.num_dummy_after_init, cur_rgs_and_dummies,
+				      config.dummy.dummy_ids_offset);
 	}
 
 	// 4) Perform TRR analysis for each position of the weak rows among the dummy rows
@@ -1936,7 +1880,7 @@ int main(int argc, char **argv)
 	if (!use_single_softmc_prog) {
 		for (uint i = 0; i < config.experiment.num_iterations; i++) {
 			bool ignore_aggrs = first_it_aggr_init_and_hammer && i != 0;
-			bool ignore_dummy_hammers = first_it_dummy_hammer && i != 0;
+			bool ignore_dummy_hammers = config.dummy.first_it_dummy_hammer && i != 0;
 			bool verbose = (i == 0);
 			auto loc_bitflips = analyzeTRR(
 				platform, hrs, arg_dummy_aggr_ids, dummy_aggrs_bank,
@@ -1949,10 +1893,13 @@ int main(int argc, char **argv)
 				config.refresh.refs_after_init, after_init_dummies,
 				config.hammer.init_aggrs_first, ignore_aggrs,
 				config.hammer.init_only_victims, ignore_dummy_hammers,
-				first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
-				config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
-				init_to_hammerbw_delay, num_bank0_hammers,
-				num_pre_init_bank0_hammers, pre_init_nops, false, 0, verbose);
+				first_it_aggr_init_and_hammer,
+				config.refresh.refs_after_init_no_dummy_hammer,
+				config.refresh.refs_per_round, config.refresh.pre_ref_delay,
+				hammers_before_wait, config.experiment.init_to_hammerbw_delay,
+				config.bank_config.num_bank0_hammers,
+				config.bank_config.num_pre_init_bank0_hammers,
+				config.experiment.pre_init_nops, false, 0, verbose);
 
 			++progress_bar;
 			progress_bar.display();
@@ -1975,7 +1922,7 @@ int main(int argc, char **argv)
 							"Victim row " + to_string(vict) + ": " +
 							to_string(
 								loc_bitflips[bitflips_ind].size());
-						if (location_out) {
+						if (config.output.location_out) {
 							output_str_vict += ": ";
 							for (auto loc : loc_bitflips[bitflips_ind])
 								output_str_vict +=
@@ -1995,7 +1942,7 @@ int main(int argc, char **argv)
 							"Victim row(U) " + to_string(uni) + ": " +
 							to_string(
 								loc_bitflips[bitflips_ind].size());
-						if (location_out) {
+						if (config.output.location_out) {
 							output_str_uni += ": ";
 							for (auto loc : loc_bitflips[bitflips_ind])
 								output_str_uni +=
@@ -2030,7 +1977,7 @@ int main(int argc, char **argv)
 			}
 		}
 	} else {
-		assert(!first_it_dummy_hammer &&
+		assert(!config.dummy.first_it_dummy_hammer &&
 		       "ERROR: --first_it_dummy_hammer is not yet supported when running the "
 		       "experiments as a single SoftMC program.");
 		// run the experiment as a single SoftMC program
@@ -2042,10 +1989,14 @@ int main(int argc, char **argv)
 			config.experiment.num_rounds, config.hammer.skip_hammering_aggr,
 			config.refresh.refs_after_init, after_init_dummies,
 			config.hammer.init_aggrs_first, false, config.hammer.init_only_victims,
-			false, first_it_aggr_init_and_hammer, refs_after_init_no_dummy_hammer,
-			config.refresh.refs_per_round, pre_ref_delay, hammers_before_wait,
-			init_to_hammerbw_delay, num_bank0_hammers, num_pre_init_bank0_hammers,
-			pre_init_nops, true, config.experiment.num_iterations, true);
+			false, first_it_aggr_init_and_hammer,
+			config.refresh.refs_after_init_no_dummy_hammer,
+			config.refresh.refs_per_round, config.refresh.pre_ref_delay,
+			hammers_before_wait, config.experiment.init_to_hammerbw_delay,
+			config.bank_config.num_bank0_hammers,
+			config.bank_config.num_pre_init_bank0_hammers,
+			config.experiment.pre_init_nops, true, config.experiment.num_iterations,
+			true);
 
 		// num_bitflips contains nothing since we have not read data from the PCIe yet
 		// receive PCIe data iteration by iteration and keep the out_file format the same
@@ -2072,7 +2023,7 @@ int main(int argc, char **argv)
 
 						out_file << "Victim row " << hr.victim_ids[vict_ind]
 							 << ": " << bitflips.size();
-						if (location_out) {
+						if (config.output.location_out) {
 							out_file << ": ";
 							for (auto loc : bitflips)
 								out_file << loc << ", ";
@@ -2093,7 +2044,7 @@ int main(int argc, char **argv)
 
 						out_file << "Victim row(U) " << hr.uni_ids[uni_ind]
 							 << ": " << bitflips.size();
-						if (location_out) {
+						if (config.output.location_out) {
 							out_file << ": ";
 							for (auto loc : bitflips)
 								out_file << loc << ", ";
