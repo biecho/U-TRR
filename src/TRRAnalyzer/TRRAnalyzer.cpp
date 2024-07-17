@@ -20,6 +20,7 @@
 #include "MemoryAnalysis.h"
 #include "Colors.h"
 #include "BitUtils.h"
+#include "TRRAnalyzer/config.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -1614,8 +1615,11 @@ void adjust_hammers_per_ref(std::vector<uint> &hammers_per_round, const uint num
 
 int main(int argc, char **argv)
 {
+
+	auto config = CLIConfig::parseCommandLine(argc, argv);
+
 	/* Program options */
-	std::string out_filename = "./out.txt";
+	auto out_filename = config.output.out_filename;
 	uint num_row_groups = 1;
 	std::string row_scout_file = "";
 	std::string row_layout = "RAR";

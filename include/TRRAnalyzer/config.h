@@ -76,7 +76,7 @@ struct MemoryBankConfig {
 };
 
 // Main configuration structure comprising all sub-configurations
-struct TRRAnalzyerConfig {
+struct TRRAnalyzerConfig {
 	RowAnalysisConfig row_analysis;
 	HammerConfig hammer;
 	DummyRowConfig dummy_row;
@@ -87,6 +87,6 @@ struct TRRAnalzyerConfig {
 };
 
 // Function prototype to parse command line arguments into configuration
-TRRAnalzyerConfig parseCommandLine(int argc, char *argv[]);
+TRRAnalyzerConfig parseCommandLine(int argc, char *argv[]);
 
 } // namespace CLIConfig

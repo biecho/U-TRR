@@ -5,9 +5,9 @@
 using namespace CLIConfig;
 namespace po = boost::program_options;
 
-TRRAnalzyerConfig parseCommandLine(int argc, char *argv[])
+TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
 {
-	TRRAnalzyerConfig config; // Configuration instance to hold all settings
+	TRRAnalyzerConfig config; // Configuration instance to hold all settings
 
 	// Define and parse command-line options
 	po::options_description desc("TRR Analyzer Options");
