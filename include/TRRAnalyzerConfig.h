@@ -4,9 +4,6 @@
 #include <string>
 #include <boost/program_options.hpp>
 
-// Namespace to manage CLI configurations for the TRR Analyzer
-namespace CLIConfig {
-
 // Configuration for row analysis
 struct RowAnalysisConfig {
 	std::string row_scout_file;
@@ -89,4 +86,5 @@ struct TRRAnalyzerConfig {
 // Function prototype to parse command line arguments into configuration
 TRRAnalyzerConfig parseCommandLine(int argc, char *argv[]);
 
-} // namespace CLIConfig
+std::ofstream openFile(const std::string& filePath, bool append);
+void ensureDirectoryExists(const std::string& filePath);

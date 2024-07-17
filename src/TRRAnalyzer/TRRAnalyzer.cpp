@@ -20,7 +20,7 @@
 #include "MemoryAnalysis.h"
 #include "Colors.h"
 #include "BitUtils.h"
-#include "TRRAnalyzer/config.h"
+#include "TRRAnalyzerConfig.h"
 
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -1615,7 +1615,7 @@ void adjust_hammers_per_ref(std::vector<uint> &hammers_per_round, const uint num
 
 int main(int argc, char **argv)
 {
-	auto config = CLIConfig::parseCommandLine(argc, argv);
+	auto config = parseCommandLine(argc, argv);
 
 	/* Program options */
 	auto out_filename = config.output.out_filename;
@@ -1661,28 +1661,6 @@ int main(int argc, char **argv)
 		exit(-3);
 	}
 
-	if (!out_filename.empty()) {
-		path out_dir(out_filename);
-		out_dir = out_dir.parent_path();
-		if (!(exists(out_dir))) {
-			if (!create_directory(out_dir)) {
-				cerr << "Cannot create directory: " << out_dir << ". Exiting..."
-				     << endl;
-				return -1;
-			}
-		}
-	}
-
-	boost::filesystem::ofstream out_file;
-	if (!out_filename.empty()) {
-		if (config.output.append_output)
-			out_file.open(out_filename, boost::filesystem::ofstream::app);
-		else
-			out_file.open(out_filename);
-	} else {
-		out_file.open("/dev/null");
-	}
-
 	SoftMCPlatform platform;
 	int err;
 
@@ -1721,7 +1699,12 @@ int main(int argc, char **argv)
 						     row_layout);
 	}
 
-	if (config.experiment.only_pick_rgs) { // write the picked weak row indices to the output file and exit
+	std::ofstream out_file;
+	string filePath = config.output.out_filename;
+	ensureDirectoryExists(filePath);
+	out_file = openFile(filePath, config.output.append_output);
+	if (config.experiment.only_pick_rgs) { // write the picked weak row indices to the output
+					       // file and exit
 		for (auto &rg : row_groups)
 			out_file << rg.index_in_file << " ";
 

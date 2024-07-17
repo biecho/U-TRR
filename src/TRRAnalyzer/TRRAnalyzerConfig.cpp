@@ -1,8 +1,8 @@
-#include "TRRAnalyzer/config.h"
+#include "TRRAnalyzerConfig.h"
 #include <iostream>
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 
-using namespace CLIConfig;
 namespace po = boost::program_options;
 
 TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
@@ -177,8 +177,7 @@ TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
 			"not specified, TRR Analyzer picks dummy rows from the same bank as the "
 			"row groups.")(
 			"dummy_aggr_ids",
-			po::value<std::vector<uint> >(&config.dummy.dummy_aggr_ids)
-				->multitoken(),
+			po::value<std::vector<uint> >(&config.dummy.dummy_aggr_ids)->multitoken(),
 			"Specifies the exact dummy row addresses to hammer in each round instead "
 			"of letting TRR Analyzer select the dummy rows.")(
 			"dummy_hammers_per_round",
@@ -188,8 +187,7 @@ TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
 			po::value<uint>(&config.dummy.dummy_ids_offset)->default_value(0),
 			"Specifies a value to offset every dummy row address. Useful when there is "
 			"a need to pick different dummy rows in different runs of TRR Analyzer.")(
-			"hammer_dummies_first",
-			po::bool_switch(&config.dummy.hammer_dummies_first),
+			"hammer_dummies_first", po::bool_switch(&config.dummy.hammer_dummies_first),
 			"When specified, the dummy rows are hammered before hammering the actual "
 			"aggressor rows.")(
 			"hammer_dummies_independently",
@@ -232,4 +230,36 @@ TRRAnalyzerConfig parseCommandLine(int argc, char *argv[])
 	}
 
 	return config;
+}
+
+void ensureDirectoryExists(const std::string &filePath)
+{
+	boost::filesystem::path path(filePath);
+	boost::filesystem::path directory = path.parent_path();
+
+	if (!directory.empty() && !boost::filesystem::exists(directory)) {
+		if (!boost::filesystem::create_directories(directory)) {
+			throw std::runtime_error("Failed to create directory: " +
+						 directory.string());
+		}
+	}
+}
+
+std::ofstream openFile(const std::string &filePath, bool append)
+{
+	std::ofstream fileStream;
+	if (!filePath.empty()) {
+		std::ios_base::openmode mode = std::ios_base::out |
+					       (append ? std::ios_base::app : std::ios_base::trunc);
+		fileStream.open(filePath, mode);
+		if (!fileStream.is_open()) {
+			throw std::runtime_error("Failed to open file: " + filePath);
+		}
+	} else {
+		fileStream.open("/dev/null");
+		if (!fileStream.is_open()) {
+			throw std::runtime_error("Failed to open /dev/null");
+		}
+	}
+	return fileStream;
 }
