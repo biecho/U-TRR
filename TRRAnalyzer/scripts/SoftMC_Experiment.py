@@ -7,6 +7,7 @@ import copy
 import pandas as pd
 import numpy as np
 
+
 class SingleTest:
     def __init__(self, path):
         self.path = path
@@ -18,7 +19,7 @@ class SingleTest:
     def __extractConfigParams(self, path):
         confs = dict()
 
-        dfile = open(self.path, 'r')
+        dfile = open(self.path, "r")
 
         while True:
             line = dfile.readline().strip()
@@ -26,7 +27,7 @@ class SingleTest:
             if line == "--- END OF HEADER ---":
                 break
 
-            if line == "": # end of the file
+            if line == "":  # end of the file
                 break
 
             key, val = line.split("=")
@@ -35,59 +36,73 @@ class SingleTest:
         dfile.close()
 
         return confs
-    
+
     def getConfig(self, config_name):
         if config_name in self.configs:
             return self.configs[config_name]
 
-        return ''
+        return ""
 
     def __parseTRRAnalyzerDataLine(self, line):
         tokens = line.split()
-        row_id = int(tokens[2].replace(':', ''))
-        num_bitflips = int(tokens[3].replace(':', ''))
-        loc_bitflips = [int(x.replace(',', '')) for x in tokens[4:]]
+        row_id = int(tokens[2].replace(":", ""))
+        num_bitflips = int(tokens[3].replace(":", ""))
+        loc_bitflips = [int(x.replace(",", "")) for x in tokens[4:]]
         return row_id, num_bitflips, loc_bitflips
 
     def __parseTRRAnalyzerData(self, file_handle):
-    
+
         bitflip_samples = dict()
         bitflip_locations = dict()
         dfs = dict()
 
         expr_count = 0
-        colName = 'NumBitflips'
+        colName = "NumBitflips"
 
         lines = file_handle.readlines()
 
         for i, line in enumerate(lines):
 
-            if line.startswith('Victim row'):
-                row_id, num_bitflips, loc_bitflips = self.__parseTRRAnalyzerDataLine(line)
-                bitflip_samples.setdefault(row_id,[]).append(num_bitflips)
-                bitflip_locations.setdefault(row_id,[]).append(loc_bitflips)
+            if line.startswith("Victim row"):
+                row_id, num_bitflips, loc_bitflips = self.__parseTRRAnalyzerDataLine(
+                    line
+                )
+                bitflip_samples.setdefault(row_id, []).append(num_bitflips)
+                bitflip_locations.setdefault(row_id, []).append(loc_bitflips)
 
-            if line.startswith('Total bitflips') or i == (len(lines) - 1):
-                
+            if line.startswith("Total bitflips") or i == (len(lines) - 1):
+
                 for row_id in bitflip_samples.keys():
                     if row_id in dfs:
-                        pd.concat([dfs[row_id], pd.DataFrame(bitflip_samples[row_id], columns=[colName])], axis=1)
+                        pd.concat(
+                            [
+                                dfs[row_id],
+                                pd.DataFrame(
+                                    bitflip_samples[row_id], columns=[colName]
+                                ),
+                            ],
+                            axis=1,
+                        )
                     else:
-                        dfs[row_id] = pd.DataFrame(bitflip_samples[row_id], columns=[colName])
+                        dfs[row_id] = pd.DataFrame(
+                            bitflip_samples[row_id], columns=[colName]
+                        )
 
                 bitflip_samples = dict()
-                expr_count += 1 # this is for parsing multiple test results in a file. Currently, we parse only the most recent (i.e., latest) test results in the file
-                colName = 'NumBitflips-' + str(expr_count)
+                expr_count += (
+                    1
+                )  # this is for parsing multiple test results in a file. Currently, we parse only the most recent (i.e., latest) test results in the file
+                colName = "NumBitflips-" + str(expr_count)
 
         self.data = dfs
         self.bitflip_locations = bitflip_locations
 
     def parseTestData(self):
-        dfile = open(self.path, 'r')
+        dfile = open(self.path, "r")
         self.__parseTRRAnalyzerData(dfile)
         dfile.close()
 
-    def configsDigest(self, excluded_configs = []):
+    def configsDigest(self, excluded_configs=[]):
         filtered_configs = copy.deepcopy(self.configs)
 
         for c in excluded_configs:
@@ -95,19 +110,22 @@ class SingleTest:
                 del filtered_configs[c]
 
         return str(filtered_configs)
-    
+
     def compareConfig(self, other_expr, configs_to_comp):
 
         for c in configs_to_comp:
-            assert c in self.configs.keys(), f"ERROR: The provided configuration parameters '{c}' does not exist in {self.path}"
-            assert c in other_expr.configs.keys(), f"ERROR: The provided configuration parameters '{c}' does not exist in {other_expr.path}"
+            assert (
+                c in self.configs.keys()
+            ), f"ERROR: The provided configuration parameters '{c}' does not exist in {self.path}"
+            assert (
+                c in other_expr.configs.keys()
+            ), f"ERROR: The provided configuration parameters '{c}' does not exist in {other_expr.path}"
 
             if self.configs[c] != other_expr.configs[c]:
                 return False
 
         return True
-        
-    
+
     def convertToTRR(self, colname):
 
         for victim in self.data.keys():
@@ -120,7 +138,7 @@ class SingleTest:
             single_vector = []
             for label in label_data:
                 if label in data:
-                    single_vector.append(floor((label%512)/(512/CHIP_NUM)))
+                    single_vector.append(floor((label % 512) / (512 / CHIP_NUM)))
                 else:
                     single_vector.append(99999)
             vector_data.append(single_vector)
@@ -137,11 +155,11 @@ class SingleTest:
         bitflips, bitflip_its = self.listToVector(bitflip_locations, CHIP_NUM)
         return bitflips, bitflip_its
 
-    def printPotentialTRRTargets(self, colname, row_layout, trr_range = 1):
+    def printPotentialTRRTargets(self, colname, row_layout, trr_range=1):
         victim_locs = []
 
         for i, c in enumerate(row_layout):
-            if c == 'R' or c == 'r' or c == 'U' or c == 'u':
+            if c == "R" or c == "r" or c == "U" or c == "u":
                 victim_locs.append(i)
 
         # combine the colname column of all victims into a single dataframe
@@ -149,10 +167,11 @@ class SingleTest:
         for victim in self.data.keys():
             combined_df[victim] = self.data[victim][colname]
 
-        trr_targets = combined_df.apply(lambda x: self.findTRRTarget(x, victim_locs, trr_range), axis=1)
+        trr_targets = combined_df.apply(
+            lambda x: self.findTRRTarget(x, victim_locs, trr_range), axis=1
+        )
 
         return trr_targets.to_csv(header=False)
-
 
     def findTRRTarget(self, victims_trr_data, victim_locs, trr_range):
 
@@ -183,7 +202,10 @@ class SingleTest:
             is_match = True
 
             for ind in must_TRR_rows:
-                if victims_trr_data[victims_trr_data.keys()[victim_locs.index(ind)]] == False: # probably it is not a good idea to index keys() since the code depends on the order of the keys
+                if (
+                    victims_trr_data[victims_trr_data.keys()[victim_locs.index(ind)]]
+                    == False
+                ):  # probably it is not a good idea to index keys() since the code depends on the order of the keys
                     is_match = False
                     break
 
@@ -197,7 +219,15 @@ class SingleTest:
 
     # Returns true if the test configuration matches all parameters in 'conf'
     def matches(self, conf):
-        if all((c[1] == 'none' if c[0] not in self.configs.keys() else c in self.configs.items()) or (c[1].lower() == 'false' and c[0] not in self.configs.keys()) for c in conf.items()):
+        if all(
+            (
+                c[1] == "none"
+                if c[0] not in self.configs.keys()
+                else c in self.configs.items()
+            )
+            or (c[1].lower() == "false" and c[0] not in self.configs.keys())
+            for c in conf.items()
+        ):
             return True
 
         return False
@@ -205,8 +235,8 @@ class SingleTest:
     # returns a list of iteration IDs that satisfy the condition specified by function 'df_apply', which goes to the DataFrame.apply()
     # An example df_apply() -> lambda x: (x == 1).all(), True if all elements in a row are 0
     def get_iterations_satisfying(self, df_apply):
-        
-        res = self.data.apply(df_apply, axis='columns')
+
+        res = self.data.apply(df_apply, axis="columns")
 
         return res.index[res == True].tolist()
 
@@ -216,15 +246,16 @@ class SingleTest:
         row_ids = list(self.data)
 
         if len(row_ids) == 0:
-            return ''
+            return ""
 
-        res = self.data[row_ids[0]].apply(lambda x: (x == 1).all(), axis='columns')
+        res = self.data[row_ids[0]].apply(lambda x: (x == 1).all(), axis="columns")
 
         for row_id in row_ids:
-            res = res & self.data[row_id].apply(lambda x: (x == 1).all(), axis='columns')
+            res = res & self.data[row_id].apply(
+                lambda x: (x == 1).all(), axis="columns"
+            )
 
         return res.index[res == True].tolist()
-
 
     # Should be called after convertToTRR() is called
     def get_iterations_with_single_REF(self):
@@ -232,17 +263,21 @@ class SingleTest:
         row_ids = list(self.data)
 
         if len(row_ids) == 0:
-            return ''
-        
-        all_TRRs = self.data[row_ids[0]].apply(lambda x: (x == 1).all(), axis='columns')
+            return ""
+
+        all_TRRs = self.data[row_ids[0]].apply(lambda x: (x == 1).all(), axis="columns")
 
         for row_id in row_ids:
-            all_TRRs = all_TRRs & self.data[row_id].apply(lambda x: (x == 1).all(), axis='columns')
+            all_TRRs = all_TRRs & self.data[row_id].apply(
+                lambda x: (x == 1).all(), axis="columns"
+            )
 
         single_REF_indices = []
 
         for row_id in row_ids:
-            tmp_df = ~all_TRRs & self.data[row_id].apply(lambda x: (x == 1).all(), axis='columns')
+            tmp_df = ~all_TRRs & self.data[row_id].apply(
+                lambda x: (x == 1).all(), axis="columns"
+            )
 
             single_REF_indices.append(tmp_df.index[tmp_df == True].tolist())
             single_REF_indices.append(-1)

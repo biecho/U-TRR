@@ -19,7 +19,7 @@ trran_file_path = sys.argv[1]
 output_data = SingleTest(trran_file_path)
 
 output_data.parseTestData()
-output_data.convertToTRR('NumBitflips')
+output_data.convertToTRR("NumBitflips")
 
 plot = plotBokehLinePerRow(output_data, y_label="#TRRs", join_wrs=False)
 
@@ -27,6 +27,3 @@ panel = Panel(child=gridplot(plot, ncols=1))
 tab = Tabs(tabs=[panel])
 
 save(tab)
-
-
-
